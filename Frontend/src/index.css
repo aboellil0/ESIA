@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Marcellus&family=Tajawal:wght@300;400;500;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --ivory: #fbf5ef;
+  --ivory-deep: #f3e9de;
+  --blush-soft: #fbedef;
+  --rose: #c67b90;
+  --rose-deep: #9a4f63;
+  --plum: #382530;
+  --plum-soft: #6b5460;
+  --gold: #c6a15b;
+  --sage-deep: #7c7856;
+  --line: rgba(198, 161, 91, 0.28);
+  --red: #b03a3a;
+  --green: #5c8a5c;
+  --gray: #9c9490;
+  --amber: #c08a2e;
+  --shadow: 0 12px 30px -18px rgba(56, 37, 48, 0.35);
+  --shadow-card: 0 4px 20px -8px rgba(56, 37, 48, 0.18);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  direction: rtl;
+  font-family: "Tajawal", sans-serif;
+  background: #ffb6c14f; 
+  color: var(--plum);
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.font-marcellus {
+  font-family: "Marcellus", serif;
+}
+.dir-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+input,
+select,
+textarea {
+  font-family: inherit;
+}
