@@ -18,6 +18,7 @@ RUN npm ci --omit=dev \
     && rm -rf /tmp/* /root/.npm
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/db/schema.sql ./dist/db/schema.sql
 
 # Pre-create uploads directories (adapted for ESIA - keep same structure for compatibility)
 RUN mkdir -p /app/uploads/products/images /app/uploads/products/videos \
