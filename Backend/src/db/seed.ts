@@ -1,40 +1,86 @@
+import "reflect-metadata";
 import dotenv from "dotenv";
 dotenv.config();
-import { pool } from "../config/db";
+import { AppDataSource } from "../config/data-source";
+import { Category } from "../models/Category";
+import { Product } from "../models/Product";
+import { ProductColor } from "../models/ProductColor";
+import { ProductSize } from "../models/ProductSize";
+import { ProductImage } from "../models/ProductImage";
+import { Admin } from "../models/Admin";
+import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
 import bcrypt from "bcryptjs";
 
 async function seed() {
-  console.log("Seeding minimal data...");
-  const cats = [
+  await AppDataSource.initialize();
+  console.log("Seeding with TypeORM...");
+
+  const catRepo = AppDataSource.getRepository(Category);
+  const prodRepo = AppDataSource.getRepository(Product);
+  const adminRepo = AppDataSource.getRepository(Admin);
+
+  const catsData = [
     { name: "Dresses", slug: "dresses" },
     { name: "Bags", slug: "bags" },
     { name: "Accessories", slug: "accessories" },
   ];
-  for (const c of cats) {
-    await pool.query(`INSERT INTO categories (name, slug) VALUES ($1,$2) ON CONFLICT (slug) DO NOTHING`, [c.name, c.slug]);
-  }
-  const { rows: [dressCat] } = await pool.query(`SELECT id FROM categories WHERE slug='dresses'`);
-  if (dressCat) {
-    const { rows: existing } = await pool.query(`SELECT id FROM products WHERE category_id=$1 LIMIT 1`, [dressCat.id]);
-    if (existing.length===0) {
-      const { rows: [prod] } = await pool.query(`
-        INSERT INTO products (category_id, name, tag, default_shape, price, old_price, short_description, is_active)
-        VALUES ($1,'Puff Sleeve Dress','new','puff_sleeves',1299,1599,'Demo dress',true) RETURNING id
-      `, [dressCat.id]);
-      await pool.query(`INSERT INTO product_colors (product_id, hex_code) VALUES ($1,'#C67B90'),($1,'#000000') ON CONFLICT DO NOTHING`, [prod.id]);
-      await pool.query(`INSERT INTO product_sizes (product_id, size) VALUES ($1,'S'),($1,'M'),($1,'L') ON CONFLICT DO NOTHING`, [prod.id]);
-      await pool.query(`INSERT INTO product_images (product_id, image_url, sort_order) VALUES ($1,'/assets/demo.jpg',0)`, [prod.id]);
-      console.log("Sample product created", prod.id);
+  for (const c of catsData) {
+    let exists = await catRepo.findOne({ where: { slug: c.slug } });
+    if (!exists) {
+      exists = catRepo.create(c);
+      await catRepo.save(exists);
+      console.log("Category created:", c.slug);
     }
   }
-  const adminEmail = "admin@esia.local";
-  const { rows: adminExists } = await pool.query(`SELECT id FROM admins WHERE email=$1`, [adminEmail]);
-  if (adminExists.length===0) {
-    const hash = await bcrypt.hash("Admin123!", 10);
-    await pool.query(`INSERT INTO admins (email, password_hash) VALUES ($1,$2)`, [adminEmail, hash]);
-    console.log("Admin created:", adminEmail, "/ Admin123!");
+
+  const dressCat = await catRepo.findOne({ where: { slug: "dresses" } });
+  if (dressCat) {
+    const existing = await prodRepo.findOne({ where: { categoryId: dressCat.id } });
+    if (!existing) {
+      const product = prodRepo.create({
+        categoryId: dressCat.id,
+        name: "Puff Sleeve Dress",
+        tag: ProductTag.NEW,
+        defaultShape: DefaultShape.PUFF_SLEEVES,
+        price: 1299,
+        oldPrice: 1599,
+        shortDescription: "Demo dress - puff sleeves default shape",
+        isActive: true,
+        mainImageUrl: null,
+      });
+      const saved = await prodRepo.save(product);
+      console.log("Product created:", saved.id);
+
+      const colorRepo = AppDataSource.getRepository(ProductColor);
+      for (const hex of ["#C67B90", "#000000"]) {
+        const col = colorRepo.create({ productId: saved.id, hexCode: hex });
+        await colorRepo.save(col);
+      }
+      const sizeRepo = AppDataSource.getRepository(ProductSize);
+      for (const s of [SizeEnum.S, SizeEnum.M, SizeEnum.L]) {
+        const sz = sizeRepo.create({ productId: saved.id, size: s, isAvailable: true });
+        await sizeRepo.save(sz);
+      }
+      const imgRepo = AppDataSource.getRepository(ProductImage);
+      const img = imgRepo.create({ productId: saved.id, imageUrl: "/assets/demo.jpg", sortOrder: 0 });
+      await imgRepo.save(img);
+      console.log("Product relations seeded");
+    } else {
+      console.log("Product already exists, skipping");
+    }
   }
+
+  let admin = await adminRepo.findOne({ where: { email: "admin@esia.local" } });
+  if (!admin) {
+    const hash = await bcrypt.hash("Admin123!", 10);
+    admin = adminRepo.create({ email: "admin@esia.local", passwordHash: hash });
+    await adminRepo.save(admin);
+    console.log("Admin created: admin@esia.local / Admin123!");
+  } else {
+    console.log("Admin exists");
+  }
+
   console.log("Seed done");
-  await pool.end();
+  await AppDataSource.destroy();
 }
-seed().catch(async e=>{ console.error(e); await pool.end(); process.exit(1); });
+seed().catch(async e=>{ console.error(e); try{ await AppDataSource.destroy(); }catch{} process.exit(1); });
