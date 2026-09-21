@@ -17,14 +17,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json({ success: true, message: "Operation completed successfully", data, statusCode: 200 });
 });
 
-export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
-  const { email, username, identifier, password } = req.body;
-  const loginId = identifier || email || username;
-  const deviceId = generateDeviceId();
-  const data = await AuthService.adminLogin(loginId, password, deviceId);
-  res.status(200).json({ success: true, message: "Operation completed successfully", data, statusCode: 200 });
-});
-
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const rawToken: string | undefined = req.body.refreshToken;
   const data = await AuthService.refresh(rawToken);

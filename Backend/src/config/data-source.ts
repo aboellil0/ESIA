@@ -27,5 +27,6 @@ export const AppDataSource = new DataSource({
   entities: [Category, Product, ProductImage, ProductColor, ProductSize, User, Admin, Order, OrderItem, Payment, RefreshToken],
   migrations: [__dirname + "/../db/migrations/*.{ts,js}"],
   subscribers: [],
-  ssl: process.env.DATABASE_URL && process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  // Disable SSL for internal Docker postgres (does not support SSL); enable only when explicitly requested via DB_SSL=true
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
 });

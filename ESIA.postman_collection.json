@@ -1,0 +1,305 @@
+{
+  "info": {
+    "name": "ESIA API",
+    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "esia-api-2026-09-21"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Direct backend (npm run dev). For docker/nginx use http://localhost"
+    },
+    {
+      "key": "baseUrlDocker",
+      "value": "http://localhost",
+      "type": "string",
+      "description": "Via nginx proxy (docker-compose)"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token - auto-set by login/refresh tests"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "Opaque refresh token - auto-set by login/refresh tests"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health & Root",
+      "item": [
+        {
+          "name": "GET / - Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Root probe - no auth. Returns { message: \"ESIA API is running\", status: \"ok\" }\nDefined in Backend/src/app.ts:64"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Health check - app.ts:67 - { status: \"ok\", uptime: number }"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Mirrored health - app.ts:70 - { status: \"ok\", message: \"Backend is running\" }"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api - API v1 index",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "description": "Generic router index - routes/index.ts:6 - { message: \"API v1\" }\nAlso available as /api/v1"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1 - API v1 index (mirrored)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1"]
+            },
+            "description": "Same as /api - mounted twice in app.ts:77-78"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Auth Public (/api/auth)",
+      "description": "No Bearer required. Rate-limited: 10 req/min (authLimiter in app.ts:58).",
+      "item": [
+        {
+          "name": "POST /api/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"01012345678\"\n}\n// Password policy (auth.service.ts): min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special (!@#$%^&*), no spaces\n// Weak examples that will 400: \"password\", \"password123\", \"Password123\", \"password123!\""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Public. controller: auth.controller.ts:6, service: auth.service.ts:19\nRequires: name, email, password, phone optional.\nPassword policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces. Example: \"Password123!\"\n201 -> { success:true, data:{ id, name, email, phone } }\n400 if weak password, 409 if email exists. Email lowercased."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.accessToken) { pm.collectionVariables.set('accessToken', json.data.accessToken); console.log('accessToken set'); }",
+                  "if (json.data && json.data.refreshToken) { pm.collectionVariables.set('refreshToken', json.data.refreshToken); console.log('refreshToken set'); }",
+                  "if (json.data && json.data.deviceId) { pm.collectionVariables.set('deviceId', json.data.deviceId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123!\"\n}\n\n// Unified login - works for both User and Admin (auth.service.ts:39 checks Admin then User)\n// Use any of: email | identifier | username\n// Examples:\n// Admin: { \"email\": \"admin@esia.local\", \"password\": \"Admin123!\" }\n// User:  { \"email\": \"test@example.com\", \"password\": \"Password123!\" }\n// { \"identifier\": \"test@example.com\", \"password\": \"...\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Public unified login (single endpoint). auth.controller.ts:12, auth.service.ts:39\nAccepts identifier|email|username + password. Checks Admin table first, then User table. Returns role accordingly.\n200 -> { accessToken (JWT 15m, role claim), refreshToken (opaque 7d), tokenExpiration, refreshTokenExpiration, deviceId, user:{id,name,email,role:\"user\"|\"admin\"} }\nTest script auto-saves tokens to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.accessToken) { pm.collectionVariables.set('accessToken', json.data.accessToken); }",
+                  "if (json.data && json.data.refreshToken) { pm.collectionVariables.set('refreshToken', json.data.refreshToken); }",
+                  "// rotation: old token invalidated, new pair issued - token.service.ts rotateRefreshToken"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Public but requires valid refreshToken in body (NOT header). auth.controller.ts:28, auth.service.ts:91\nRotates token: old deleted, new pair returned. 401 if invalid/expired/revoked.\nTest script auto-updates {{accessToken}} and {{refreshToken}}."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Public, revokes refresh token. auth.controller.ts:34, auth.service.ts:134\nBody: { refreshToken }. If omitted, still 200 but nothing revoked. Always 200 { success:true, data:null }."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Auth Authenticated (/api/auth/me)",
+      "description": "Requires Authorization: Bearer {{accessToken}}. All use protect middleware (auth.middleware.ts:29). Token from ACCESS_TOKEN_SECRET / JWT_SECRET (15m default).",
+      "item": [
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Authenticated - any role. auth.routes.ts:15 -> controller me() returns { success:true, data:{ user:{id,email,role,iat,exp} } }\n401 if no/invalid token."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/auth/me/user - userOnly",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me", "user"]
+            },
+            "description": "protect + userOnly (auth.middleware.ts:73). Only role=user passes, 403 otherwise."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/auth/me/admin - adminOnly",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me/admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me", "admin"]
+            },
+            "description": "protect + adminOnly (auth.middleware.ts:69). Only role=admin passes."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

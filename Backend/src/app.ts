@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -11,6 +12,8 @@ import router from "./routes";
 import authRoutes from "./routes/auth.routes";
 
 const app = express();
+// Required when behind nginx/docker (express-rate-limit checks X-Forwarded-For)
+app.set("trust proxy", 1);
 
 const allowedOrigins: string[] =
   process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim() !== ""

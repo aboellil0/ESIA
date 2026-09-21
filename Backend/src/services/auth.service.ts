@@ -1,8 +1,10 @@
+import "reflect-metadata";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../models/User";
 import { Admin } from "../models/Admin";
+import { RefreshToken } from "../models/RefreshToken";
 import { AppError } from "../utils/AppError";
 import {
   signAccessToken,
@@ -15,11 +17,32 @@ import {
 import { UserRole } from "../models/enums";
 import config from "../config";
 
+const PASSWORD_REGEX = {
+  minLength: 8,
+  uppercase: /[A-Z]/,
+  lowercase: /[a-z]/,
+  digit: /[0-9]/,
+  special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/,
+};
+
+function validatePasswordStrength(password: string): void {
+  const errors: string[] = [];
+  if (password.length < PASSWORD_REGEX.minLength) errors.push(`at least ${PASSWORD_REGEX.minLength} characters`);
+  if (!PASSWORD_REGEX.uppercase.test(password)) errors.push("one uppercase letter (A-Z)");
+  if (!PASSWORD_REGEX.lowercase.test(password)) errors.push("one lowercase letter (a-z)");
+  if (!PASSWORD_REGEX.digit.test(password)) errors.push("one number (0-9)");
+  if (!PASSWORD_REGEX.special.test(password)) errors.push("one special character (!@#$%^&* etc.)");
+  if (/\s/.test(password)) errors.push("no spaces");
+  if (errors.length) {
+    throw AppError.validation(`Password must contain ${errors.join(", ")}. Example: \"Password123!\"`);
+  }
+}
+
 export const AuthService = {
   async register(data: { name?: string; email?: string; password?: string; phone?: string }) {
     const { name, email, password, phone } = data;
     if (!name || !email || !password) throw AppError.validation("name, email and password are required");
-    if (password.length < 6) throw AppError.validation("Password must be at least 6 characters");
+    validatePasswordStrength(password);
 
     const userRepo = AppDataSource.getRepository(User);
     const existing = await userRepo.findOne({ where: { email: email.toLowerCase() } });
@@ -39,8 +62,30 @@ export const AuthService = {
   async login(identifier?: string, password?: string, deviceId: string = "unknown") {
     if (!identifier || !password) throw AppError.validation("Email and password are required");
 
+    const emailLower = identifier.toLowerCase();
+
+    // Unified login: try Admin first, then User (single endpoint for all roles)
+    const adminRepo = AppDataSource.getRepository(Admin);
+    const admin = await adminRepo.findOne({ where: { email: emailLower } });
+    if (admin) {
+      const match = await bcrypt.compare(password, admin.passwordHash);
+      if (!match) throw AppError.unauthorized("Invalid credentials");
+      const rawRefreshToken = generateRefreshToken();
+      const accessToken = signAccessToken(String(admin.id), admin.email, UserRole.ADMIN);
+      const refreshDoc = await saveRefreshToken(rawRefreshToken, admin.id, "admin", deviceId);
+      const decoded = jwt.decode(accessToken) as any;
+      return {
+        accessToken,
+        refreshToken: rawRefreshToken,
+        tokenExpiration: new Date(decoded.exp * 1000).toISOString(),
+        refreshTokenExpiration: refreshDoc.expiresAt.toISOString(),
+        deviceId,
+        user: { id: admin.id, email: admin.email, role: UserRole.ADMIN, name: "Admin" },
+      };
+    }
+
     const userRepo = AppDataSource.getRepository(User);
-    const user = await userRepo.findOne({ where: { email: identifier.toLowerCase() } });
+    const user = await userRepo.findOne({ where: { email: emailLower } });
     if (!user) throw AppError.unauthorized("Invalid credentials");
 
     const match = await bcrypt.compare(password, user.passwordHash);
@@ -48,7 +93,6 @@ export const AuthService = {
 
     const rawRefreshToken = generateRefreshToken();
     const accessToken = signAccessToken(String(user.id), user.email, UserRole.USER);
-
     const refreshDoc = await saveRefreshToken(rawRefreshToken, user.id, "user", deviceId);
     const decoded = jwt.decode(accessToken) as any;
 
@@ -62,38 +106,12 @@ export const AuthService = {
     };
   },
 
-  async adminLogin(identifier?: string, password?: string, deviceId: string = "unknown") {
-    if (!identifier || !password) throw AppError.validation("Email and password are required");
-
-    const adminRepo = AppDataSource.getRepository(Admin);
-    const admin = await adminRepo.findOne({ where: { email: identifier.toLowerCase() } });
-    if (!admin) throw AppError.unauthorized("Invalid credentials");
-
-    const match = await bcrypt.compare(password, admin.passwordHash);
-    if (!match) throw AppError.unauthorized("Invalid credentials");
-
-    const rawRefreshToken = generateRefreshToken();
-    const accessToken = signAccessToken(String(admin.id), admin.email, UserRole.ADMIN);
-
-    const refreshDoc = await saveRefreshToken(rawRefreshToken, admin.id, "admin", deviceId);
-    const decoded = jwt.decode(accessToken) as any;
-
-    return {
-      accessToken,
-      refreshToken: rawRefreshToken,
-      tokenExpiration: new Date(decoded.exp * 1000).toISOString(),
-      refreshTokenExpiration: refreshDoc.expiresAt.toISOString(),
-      deviceId,
-      user: { id: admin.id, email: admin.email, role: UserRole.ADMIN, name: "Admin" },
-    };
-  },
-
   async refresh(rawToken?: string) {
     if (!rawToken) throw AppError.unauthorized("No refresh token provided");
     const stored = await findRefreshToken(rawToken);
     if (!stored) throw AppError.unauthorized("Refresh token is invalid or has been revoked");
     if (stored.expiresAt < new Date()) {
-      await AppDataSource.getRepository((await import("../models/RefreshToken.js")).RefreshToken).delete({ id: stored.id });
+      await AppDataSource.getRepository(RefreshToken).delete({ id: stored.id });
       throw AppError.unauthorized("Refresh token has expired");
     }
 
