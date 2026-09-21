@@ -1,15 +1,16 @@
-﻿import { Router, Request, Response } from "express";
-import { pool } from "../config/db";
+import { Router, Request, Response } from "express";
+import { protect, adminOnly, userOnly, adminOrUser } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-router.get("/test-db", async (_req: Request, res: Response) => {
-  try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({ success: true, time: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false, error: (err as Error).message });
-  }
+router.get("/", (_req: Request, res: Response) => {
+  res.json({ message: "API v1" });
 });
 
+// Auth routes mounted directly in app.ts with rate-limit, so no mount here
+// Example usage:
+// router.get("/admin/dashboard", protect, adminOnly, (req,res)=>res.json({ok:true}));
+// router.get("/user/orders", protect, userOnly, (req,res)=>res.json({ok:true}));
+
 export default router;
+export { protect, adminOnly, userOnly, adminOrUser };

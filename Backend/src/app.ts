@@ -1,59 +1,85 @@
-﻿import express, { Request, Response, NextFunction } from "express";
+import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import hpp from "hpp";
 import path from "path";
-import routes from "./routes";
+import { mongoSanitize } from "./middlewares/sanitize.middleware";
+import { globalErrorHandler, notFoundHandler } from "./middlewares/error.middleware";
+import router from "./routes";
+import authRoutes from "./routes/auth.routes";
 
 const app = express();
 
-// CORS - support comma-separated FRONTEND_URL (e.g. https://esia.com,https://www.esia.com,http://localhost)
-const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
+const allowedOrigins: string[] =
+  process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim() !== ""
+    ? process.env.FRONTEND_URL.split(",").map((url) => url.trim())
+    : [];
 
-app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow non-browser requests (curl, healthcheck) and allowed list
-      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Not allowed by CORS: ${origin}`));
-      }
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin "${origin}" is not listed in FRONTEND_URL`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
-app.use(morgan("dev"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Static uploads - mirrored from Al Rouba setup
-const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
-app.use("/uploads", express.static(uploadDir));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
-app.get("/", (_req: Request, res: Response) => {
+app.use(mongoSanitize);
+app.use(helmet());
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+app.use(hpp());
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+}
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  message: "Too many requests from this IP, please try again later.",
+});
+app.use("/api", limiter);
+
+app.use("/api", (_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: "Too many authentication attempts from this IP, please try again after 1 minute" },
+});
+
+app.get("/", (_req, res) => {
   res.json({ message: "ESIA API is running", status: "ok" });
 });
-
-app.get("/api/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString(), uptime: process.uptime() });
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
+app.get("/api/v1/health", (_req, res) => {
+  res.json({ status: "ok", message: "Backend is running" });
 });
 
-app.use("/api", routes);
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/v1/auth", authLimiter, authRoutes);
 
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: "Route not found" });
-});
+app.use("/api", router);
+app.use("/api/v1", router);
 
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: err.message || "Internal Server Error",
-  });
-});
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
 
 export default app;

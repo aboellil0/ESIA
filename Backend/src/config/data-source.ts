@@ -12,6 +12,7 @@ import { Admin } from "../models/Admin";
 import { Order } from "../models/Order";
 import { OrderItem } from "../models/OrderItem";
 import { Payment } from "../models/Payment";
+import { RefreshToken } from "../models/RefreshToken";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -23,7 +24,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DATABASE_URL ? undefined : (process.env.PGDATABASE || "esia_db"),
   synchronize: false,
   logging: process.env.NODE_ENV === "development" ? false : false,
-  entities: [Category, Product, ProductImage, ProductColor, ProductSize, User, Admin, Order, OrderItem, Payment],
+  entities: [Category, Product, ProductImage, ProductColor, ProductSize, User, Admin, Order, OrderItem, Payment, RefreshToken],
   migrations: [__dirname + "/../db/migrations/*.{ts,js}"],
   subscribers: [],
   ssl: process.env.DATABASE_URL && process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,

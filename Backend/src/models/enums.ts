@@ -28,3 +28,7 @@ export enum OrderStatus {
   DELIVERED = "delivered",
   CANCELLED = "cancelled",
 }
+export enum UserRole {
+  USER = "user",
+  ADMIN = "admin",
+}

@@ -9,3 +9,4 @@ export { Admin } from "./Admin";
 export { Order } from "./Order";
 export { OrderItem } from "./OrderItem";
 export { Payment } from "./Payment";
+export { RefreshToken } from "./RefreshToken";
