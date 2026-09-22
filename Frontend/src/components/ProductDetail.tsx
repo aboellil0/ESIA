@@ -75,7 +75,7 @@ export default function ProductDetail({
       name: product.name,
       price: product.price,
       size: selectedSize,
-      color: activeColor?.label ?? "أساسي",
+      color: activeColor?.color ?? "black",
       image: galleryImage,
       qty,
     });
@@ -218,7 +218,7 @@ export default function ProductDetail({
               >
                 اللون:{" "}
                 <span style={{ color: "var(--plum-soft)", fontWeight: 400 }}>
-                  {activeColor?.label ?? "أساسي"}
+                  {activeColor?.color ?? "black"}
                 </span>
               </div>
               <div className="flex gap-2.5">
@@ -230,7 +230,7 @@ export default function ProductDetail({
                     style={{
                       width: 26,
                       height: 26,
-                      background: c.hex,
+                      background: c.color,
                       outline:
                         selectedColor === i
                           ? `2px solid var(--rose-deep)`
@@ -238,6 +238,7 @@ export default function ProductDetail({
                       outlineOffset: 2,
                       boxShadow: "0 0 0 1px var(--line)",
                     }}
+                    title={c.color}
                   />
                 ))}
               </div>

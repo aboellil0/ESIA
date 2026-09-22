@@ -427,7 +427,8 @@ export function ProductCard({
             <span
               key={ci}
               className="w-3 h-3 rounded-full"
-              style={{ background: c.hex, boxShadow: "0 0 0 1px var(--line)" }}
+              style={{ background: c.color, boxShadow: "0 0 0 1px var(--line)" }}
+              title={c.color}
             />
           ))}
         </div>

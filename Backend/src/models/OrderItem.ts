@@ -34,9 +34,9 @@ export class OrderItem {
   @Expose()
   unitPrice!: number;
 
-  @Column({ name: "color_hex", type: "varchar", length: 7, nullable: true })
+  @Column({ name: "color", type: "varchar", length: 30, nullable: true })
   @Expose()
-  colorHex!: string | null;
+  color!: string | null;
 
   @Column({ type: "enum", enum: ProductSize, nullable: true })
   @Expose()

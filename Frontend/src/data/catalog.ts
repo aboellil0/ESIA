@@ -1,8 +1,7 @@
 export type CategoryKey = "dresses" | "bags" | "accessories";
 
 export interface CatalogColor {
-  label: string;
-  hex: string;
+  color: string;
   img?: string;
   thumbs?: string[];
 }
@@ -81,20 +80,17 @@ export const PRODUCTS: CatalogProduct[] = [
     category: "dresses",
     colors: [
       {
-        label: "وردي كلاسيكي",
-        hex: "#C67B90",
+        color: "pink",
         img: PRODUCT_ASSETS.product1[0],
         thumbs: PRODUCT_ASSETS.product1,
       },
       {
-        label: "أسود",
-        hex: "#22201E",
+        color: "black",
         img: PRODUCT_ASSETS.product1[1],
         thumbs: PRODUCT_ASSETS.product1,
       },
       {
-        label: "عاجي",
-        hex: "#F0E6DA",
+        color: "beige",
         img: PRODUCT_ASSETS.product1[2],
         thumbs: PRODUCT_ASSETS.product1,
       },
@@ -117,14 +113,12 @@ export const PRODUCTS: CatalogProduct[] = [
     category: "dresses",
     colors: [
       {
-        label: "كاكي",
-        hex: "#7C7856",
+        color: "beige",
         img: PRODUCT_ASSETS.product2[0],
         thumbs: PRODUCT_ASSETS.product2,
       },
       {
-        label: "وردي",
-        hex: "#C67B90",
+        color: "pink",
         img: PRODUCT_ASSETS.product2[1],
         thumbs: PRODUCT_ASSETS.product2,
       },
@@ -146,14 +140,12 @@ export const PRODUCTS: CatalogProduct[] = [
     category: "dresses",
     colors: [
       {
-        label: "عاجي",
-        hex: "#F0E6DA",
+        color: "beige",
         img: PRODUCT_ASSETS.product3[0],
         thumbs: PRODUCT_ASSETS.product3,
       },
       {
-        label: "أسود",
-        hex: "#22201E",
+        color: "black",
         img: PRODUCT_ASSETS.product3[1],
         thumbs: PRODUCT_ASSETS.product3,
       },
@@ -175,8 +167,7 @@ export const PRODUCTS: CatalogProduct[] = [
     category: "dresses",
     colors: [
       {
-        label: "أسود",
-        hex: "#22201E",
+        color: "black",
         img: PRODUCT_ASSETS.product4[0],
         thumbs: PRODUCT_ASSETS.product4,
       },
@@ -198,20 +189,17 @@ export const PRODUCTS: CatalogProduct[] = [
     category: "dresses",
     colors: [
       {
-        label: "وردي",
-        hex: "#C67B90",
+        color: "pink",
         img: PRODUCT_ASSETS.product5[0],
         thumbs: PRODUCT_ASSETS.product5,
       },
       {
-        label: "عاجي",
-        hex: "#F0E6DA",
+        color: "beige",
         img: PRODUCT_ASSETS.product5[0],
         thumbs: PRODUCT_ASSETS.product5,
       },
       {
-        label: "أحمر داكن",
-        hex: "#7B2D3A",
+        color: "red",
         img: PRODUCT_ASSETS.product5[0],
         thumbs: PRODUCT_ASSETS.product5,
       },

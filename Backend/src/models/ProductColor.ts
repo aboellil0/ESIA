@@ -1,9 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from "typeorm";
 import { Expose } from "class-transformer";
 import { Product } from "./Product";
 
 @Entity("product_colors")
-@Unique(["productId", "hexCode"])
+@Unique(["productId", "color"])
 export class ProductColor {
   @PrimaryGeneratedColumn()
   @Expose()
@@ -17,7 +17,7 @@ export class ProductColor {
   @JoinColumn({ name: "product_id" })
   product!: Product;
 
-  @Column({ name: "hex_code", type: "varchar", length: 7 })
+  @Column({ name: "color", type: "varchar", length: 30 })
   @Expose()
-  hexCode!: string;
+  color!: string;
 }

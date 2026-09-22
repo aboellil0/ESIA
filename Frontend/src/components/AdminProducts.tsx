@@ -95,8 +95,8 @@ export default function AdminProducts({
   const [tag, setTag] = useState("");
   const [price, setPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
-  const [colors, setColors] = useState(["#C67B90"]);
-  const [colorPicker, setColorPicker] = useState("#C67B90");
+  const [colors, setColors] = useState<string[]>(["pink"]);
+  const [colorPicker, setColorPicker] = useState<string>("pink");
   const [sizes, setSizes] = useState<string[]>([...SIZES]);
   const [unavailableSizes, setUnavailableSizes] = useState<string[]>([]);
   const [shape, setShape] = useState("puff");
@@ -194,7 +194,7 @@ export default function AdminProducts({
     setOriginalPrice(
       product.originalPrice ? String(product.originalPrice) : "",
     );
-    setColors(product.colors.map((c) => c.hex));
+    setColors(product.colors.map((c) => c.color));
     setSizes(product.sizes.length ? product.sizes : [...SIZES]);
     setUnavailableSizes(product.unavailableSizes ?? []);
     setDesc(product.fabric || product.sub || "");
@@ -225,9 +225,8 @@ export default function AdminProducts({
     const p = parseFloat(price);
     const o = parseFloat(originalPrice) || null;
     const normalizedCategory = category as CategoryKey;
-    const catalogColors = colors.map((hex, index) => ({
-      label: index === 0 ? "اللون الأساسي" : `لون ${index + 1}`,
-      hex,
+    const catalogColors = colors.map((color) => ({
+      color,
     }));
     const allUploadedImages = [
       ...(uploadedImage ? [uploadedImage.dataUrl] : []),
@@ -286,7 +285,7 @@ export default function AdminProducts({
     setOriginalPrice("");
     setDesc("");
     setTag("");
-    setColors(["#C67B90"]);
+    setColors(["pink"]);
     setSizes([...SIZES]);
     setUnavailableSizes([]);
     setShape("puff");
@@ -760,8 +759,8 @@ export default function AdminProducts({
               </Field>
             </div>
 
-            {/* Colors */}
-            <Field label="الألوان المتاحة">
+            {/* Colors - DB driven varchar */}
+            <Field label="الألوان المتاحة (اسم اللون بالإنجليزية)">
               <div className="flex flex-wrap gap-2.5 items-center">
                 {colors.map((c, i) => (
                   <div
@@ -794,10 +793,16 @@ export default function AdminProducts({
               </div>
               <div className="flex items-center gap-2 mt-2.5">
                 <input
-                  type="color"
+                  type="text"
                   value={colorPicker}
-                  onChange={(e) => setColorPicker(e.target.value)}
-                  className="w-9 h-9 rounded-full border-none p-0 cursor-pointer bg-transparent"
+                  onChange={(e) => setColorPicker(e.target.value.toLowerCase().trim())}
+                  placeholder="e.g. red"
+                  className="rounded-[10px] px-3 py-2 text-sm outline-none dir-ltr"
+                  style={{
+                    border: "1px solid var(--line)",
+                    background: "var(--ivory)",
+                    color: "var(--plum)",
+                  }}
                 />
                 <button
                   onClick={addColor}
@@ -810,6 +815,9 @@ export default function AdminProducts({
                   + إضافة لون
                 </button>
               </div>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--gray)" }}>
+                الألوان الآن varchar في DB — أدخلي اسم اللون بالإنجليزية (red, blue...) وفريد لكل منتج
+              </p>
             </Field>
 
             {/* Sizes */}
@@ -925,7 +933,7 @@ export default function AdminProducts({
                 ) : (
                   <SilhouetteSVG
                     shape={shape}
-                    color={colors[0] ?? "#C67B90"}
+                    color={colors[0] ?? "pink"}
                     className="w-[64%] h-[82%]"
                   />
                 )}
@@ -1068,7 +1076,7 @@ export default function AdminProducts({
                           ) : (
                             <SilhouetteSVG
                               shape={"puff"}
-                              color={p.colors[0]?.hex ?? "#C67B90"}
+                              color={p.colors[0]?.color ?? "pink"}
                               className="w-[60%] h-[80%]"
                             />
                           )}
@@ -1091,7 +1099,7 @@ export default function AdminProducts({
                               key={i}
                               className="w-3 h-3 rounded-full"
                               style={{
-                                background: c.hex,
+                                background: c.color,
                                 boxShadow: "0 0 0 1px var(--line)",
                               }}
                             />

@@ -52,8 +52,8 @@ async function seed() {
       console.log("Product created:", saved.id);
 
       const colorRepo = AppDataSource.getRepository(ProductColor);
-      for (const hex of ["#C67B90", "#000000"]) {
-        const col = colorRepo.create({ productId: saved.id, hexCode: hex });
+      for (const color of ["pink", "black"]) {
+        const col = colorRepo.create({ productId: saved.id, color });
         await colorRepo.save(col);
       }
       const sizeRepo = AppDataSource.getRepository(ProductSize);
