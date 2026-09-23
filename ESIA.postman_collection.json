@@ -300,6 +300,112 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "04 - Categories (/api/categories)",
+      "description": "Category CRUD. Public reads (GET), admin writes (POST/PATCH/DELETE). Routes: Backend/src/routes/category.routes.ts:14, Controller: Backend/src/controllers/category.controller.ts. Mounted at /api/categories and /api/v1/categories via routes/index.ts. Admin = protect + adminOnly (auth.middleware.ts:69) requires Bearer {{accessToken}} with role=admin. Slug auto-generated from name via slugify() if not provided.",
+      "item": [
+        {
+          "name": "GET /api/categories - List all",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories"]
+            },
+            "description": "Public. controller: category.controller.ts:getAllCategories. Returns all categories ordered by id ASC.\n200 -> { success:true, data:[{id,name,slug}], statusCode:200 }\nAlso available as /api/v1/categories"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/categories/:id - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "1"]
+            },
+            "description": "Public. category.controller.ts:getCategoryById. Param id must be integer.\n200 -> { success:true, data:{id,name,slug} }\n400 if invalid id, 404 if not found.\nAlso available as /api/v1/categories/:id"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/categories/slug/:slug - Get by slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/slug/dresses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "slug", "dresses"]
+            },
+            "description": "Public. category.controller.ts:getCategoryBySlug. Lookup by unique slug (e.g. dresses, bags).\n200 -> { success:true, data:{id,name,slug} }\n404 if not found."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/categories - Create (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shoes\",\n  \"slug\": \"shoes\"\n}\n// name required 2-100 chars, trimmed\n// slug optional 2-120 chars; if omitted auto-generated from name via slugify() (e.g. \"Evening Dresses\" -> \"evening-dresses\")\n// slug may contain letters (including Arabic), numbers, hyphens only\n// Examples:\n// { \"name\": \"Shoes\" }\n// { \"name\": \"Evening Dresses\", \"slug\": \"evening-dresses\" }\n// { \"name\": \"أحذية\" } -> slug auto \"أحذية\""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories"]
+            },
+            "description": "Admin only (protect + adminOnly). category.controller.ts:createCategory\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nBody: { name (required), slug (optional) } -> slug normalized via slugify().\n201 -> { success:true, message:\"Category created successfully\", data:{id,name,slug}, statusCode:201 }\n400 if validation fails, 401 if no token, 403 if not admin, 409 if name or slug already exists."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/categories/:id - Update (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Evening Dresses\",\n  \"slug\": \"evening-dresses\"\n}\n// At least one of name or slug required\n// If only name provided, slug auto-regenerates from new name\n// If slug provided explicitly, it is normalized via slugify()\n// Examples:\n// { \"name\": \"Updated Name\" }\n// { \"slug\": \"custom-slug\" }\n// { \"name\": \"New Name\", \"slug\": \"custom-slug\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "1"]
+            },
+            "description": "Admin only (protect + adminOnly). category.controller.ts:updateCategory. Route: PATCH /api/categories/:id (PUT removed).\nRequires Bearer admin token. At least one of name/slug must be provided.\n200 -> { success:true, message:\"Category updated successfully\", data:{id,name,slug}, statusCode:200 }\n400 if no fields or invalid, 404 if not found, 409 if duplicate name/slug."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/categories/:id - Delete (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "1"]
+            },
+            "description": "Admin only (protect + adminOnly). category.controller.ts:deleteCategory\nRequires Bearer admin token. Deletes category by id; FK ON DELETE CASCADE will also delete its products (see migrations/1710000000000-Init.ts:30).\n200 -> { success:true, message:\"Category deleted successfully\", data:null, statusCode:200 }\n400 if invalid id, 404 if not found, 401/403 if not admin."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
