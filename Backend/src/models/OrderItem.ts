@@ -34,9 +34,27 @@ export class OrderItem {
   @Expose()
   unitPrice!: number;
 
-  @Column({ name: "color", type: "varchar", length: 30, nullable: true })
+  @Column({ name: "color_name_en", type: "varchar", length: 50, nullable: true })
   @Expose()
-  color!: string | null;
+  colorNameEn!: string | null;
+
+  @Column({ name: "color_name_ar", type: "varchar", length: 50, nullable: true })
+  @Expose()
+  colorNameAr!: string | null;
+
+  @Column({ name: "color_hex", type: "varchar", length: 7, nullable: true })
+  @Expose()
+  colorHex!: string | null;
+
+  // Deprecated single-field color kept as getter for backward compat — not mapped to DB
+  // Use colorNameEn / colorNameAr / colorHex instead.
+  @Expose()
+  get color(): string | null {
+    return this.colorNameEn ?? this.colorHex ?? null;
+  }
+  set color(value: string | null) {
+    this.colorNameEn = value;
+  }
 
   @Column({ type: "enum", enum: ProductSize, nullable: true })
   @Expose()
