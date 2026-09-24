@@ -249,57 +249,8 @@
     },
     {
       "name": "03 - Auth Authenticated (/api/auth/me)",
-      "description": "Requires Authorization: Bearer {{accessToken}}. All use protect middleware (auth.middleware.ts:29). Token from ACCESS_TOKEN_SECRET / JWT_SECRET (15m default).",
-      "item": [
-        {
-          "name": "GET /api/auth/me",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me"]
-            },
-            "description": "Authenticated - any role. auth.routes.ts:15 -> controller me() returns { success:true, data:{ user:{id,email,role,iat,exp} } }\n401 if no/invalid token."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/auth/me/user - userOnly",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me/user",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me", "user"]
-            },
-            "description": "protect + userOnly (auth.middleware.ts:73). Only role=user passes, 403 otherwise."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/auth/me/admin - adminOnly",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me/admin",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me", "admin"]
-            },
-            "description": "protect + adminOnly (auth.middleware.ts:69). Only role=admin passes."
-          },
-          "response": []
-        }
-      ]
+      "description": "Requires Authorization: Bearer {{accessToken}}. All use protect middleware (auth.middleware.ts:29). Token from ACCESS_TOKEN_SECRET / JWT_SECRET (15m default). [Endpoints removed per request]",
+      "item": []
     },
     {
       "name": "04 - Categories (/api/categories)",
