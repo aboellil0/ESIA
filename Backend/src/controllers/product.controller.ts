@@ -39,6 +39,60 @@ function tryParseJsonArray(val: any): any[] | null {
   return null;
 }
 
+// ─── Frontend-easy indexed image helper: image[0] file, image[0].isMain bool, image[0].url text ───
+// Supports: image[0] (file), image[0].isMain, image[0].url, image[0].sortOrder, and same for images[0]
+// Returns sorted array or null if no indexed pattern detected
+function parseIndexedImages(body: any, files: Express.Multer.File[]): { imageUrl: string; isMain: boolean; sortOrder: number }[] | null {
+  const map = new Map<number, { file?: Express.Multer.File; url?: string; isMain?: boolean; sortOrder?: number }>();
+  const fileRegex = /^(?:image|images)\[(\d+)\](?:\.file)?$/;
+  for (const f of files) {
+    const m = f.fieldname.match(fileRegex);
+    if (m) {
+      const idx = Number(m[1]);
+      if (!map.has(idx)) map.set(idx, {});
+      map.get(idx)!.file = f;
+    }
+  }
+  const keyRegex = /^(?:image|images)\[(\d+)\]\.(.+)$/;
+  for (const key of Object.keys(body)) {
+    const m = key.match(keyRegex);
+    if (!m) continue;
+    const idx = Number(m[1]);
+    const prop = m[2];
+    if (!map.has(idx)) map.set(idx, {});
+    const entry = map.get(idx)!;
+    const raw = body[key];
+    const normProp = prop.toLowerCase().replace(/_/g, "");
+    if (normProp === "ismain" || normProp === "ismainbool") {
+      entry.isMain = raw === true || raw === "true" || raw === "1" || raw === 1;
+    } else if (normProp === "url" || normProp === "imageurl") {
+      if (typeof raw === "string" && raw.trim()) entry.url = raw.trim();
+    } else if (normProp === "sortorder" || normProp === "order") {
+      const n = Number(raw);
+      if (!Number.isNaN(n) && Number.isInteger(n) && n >= 0) entry.sortOrder = n;
+    }
+  }
+  if (map.size === 0) return null;
+  const result: { imageUrl: string; isMain: boolean; sortOrder: number }[] = [];
+  const sortedIdx = Array.from(map.keys()).sort((a, b) => a - b);
+  for (const idx of sortedIdx) {
+    const e = map.get(idx)!;
+    let imageUrl: string | null = null;
+    if (e.file) imageUrl = `/uploads/products/images/${e.file.filename}`;
+    else if (e.url) imageUrl = e.url;
+    else continue; // skip empty slot
+    result.push({
+      imageUrl,
+      isMain: !!e.isMain,
+      sortOrder: e.sortOrder !== undefined ? e.sortOrder : idx,
+    });
+  }
+  if (result.length === 0) return null;
+  // sort by sortOrder then idx, then re-normalize contiguous like Al Rouba
+  result.sort((a, b) => a.sortOrder - b.sortOrder);
+  return result.map((r, i) => ({ ...r, sortOrder: i }));
+}
+
 function validateProductPayload(body: any) {
   const errors: string[] = [];
 
@@ -168,6 +222,7 @@ function validateProductPayload(body: any) {
   }
 
   // images optional — also handles multipart JSON string (Al Rouba: safeParse) and allows empty when files are uploaded
+  // Now supports isMain per image for card display (is_main boolean)
   {
     if (typeof body.images === "string") {
       const trimmed = body.images.trim();
@@ -180,7 +235,7 @@ function validateProductPayload(body: any) {
     }
   }
   if (body.images !== undefined && body.images !== null && body.images !== "") {
-    if (!Array.isArray(body.images)) errors.push("images must be an array of { imageUrl, sortOrder }");
+    if (!Array.isArray(body.images)) errors.push("images must be an array of { imageUrl, sortOrder, isMain }");
     else {
       body.images.forEach((img: any, idx: number) => {
         if (!img || typeof img !== "object") {
@@ -197,8 +252,17 @@ function validateProductPayload(body: any) {
           const so = Number(img.sortOrder);
           if (!Number.isInteger(so) || so < 0) errors.push(`images[${idx}].sortOrder must be a non-negative integer`);
         }
+        if (img.isMain !== undefined && img.is_main !== undefined) {
+          const v = img.isMain ?? img.is_main;
+          if (typeof v !== "boolean" && v !== "true" && v !== "false" && v !== 0 && v !== 1) errors.push(`images[${idx}].isMain must be boolean`);
+        } else if (img.isMain !== undefined) {
+          const v = img.isMain;
+          if (typeof v !== "boolean" && v !== "true" && v !== "false" && v !== 0 && v !== 1) errors.push(`images[${idx}].isMain must be boolean`);
+        }
       });
       if (body.images.length > 20) errors.push("images must contain at most 20 items");
+      const mainCount = body.images.filter((img: any) => img.isMain === true || img.isMain === "true" || img.is_main === true || img.is_main === "true" || img.isMain === 1).length;
+      if (mainCount > 1) errors.push("Only one image can have isMain=true");
     }
   }
 
@@ -235,6 +299,7 @@ function validateProductPayload(body: any) {
     ? body.images.map((img: any, idx: number) => ({
         imageUrl: String(img.imageUrl ?? img.image_url ?? img.url).trim(),
         sortOrder: img.sortOrder !== undefined ? Number(img.sortOrder) : img.sort_order !== undefined ? Number(img.sort_order) : idx,
+        isMain: img.isMain !== undefined ? Boolean(img.isMain === "true" ? true : img.isMain === "false" ? false : img.isMain) : img.is_main !== undefined ? Boolean(img.is_main === "true" ? true : img.is_main === "false" ? false : img.is_main) : false,
       }))
     : [];
 
@@ -242,7 +307,7 @@ function validateProductPayload(body: any) {
 }
 
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
-  // ─── Al Roubabest: collect uploaded files (multer) — if multipart, body fields are strings, tryParse already handled ───
+  // ─── Collect uploaded files (multer) — supports legacy images/files + new indexed image[0] pattern for frontend ease ───
   const uploadedFiles: Express.Multer.File[] = (() => {
     const out: Express.Multer.File[] = [];
     if ((req as any).file) out.push((req as any).file as Express.Multer.File);
@@ -253,29 +318,55 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
     }
     return out;
   })();
+
+  // ─── Frontend-easy indexed image handling: image[0] file, image[0].isMain, image[0].url ───
+  // If indexed pattern detected, pre-fill req.body.images so validation passes and merging uses indexed data directly
+  const indexedForCreate = parseIndexedImages(req.body, uploadedFiles);
+  if (indexedForCreate && indexedForCreate.length > 0) {
+    // Inject as body.images for validateProductPayload (with isMain)
+    (req.body as any).images = indexedForCreate;
+    // Also ensure multipart fields like colors/sizes still parsed via tryParseJsonArray later
+  }
+
   const uploadedImagesFromFiles = uploadedFiles
-    .filter((f) => ["images", "files", "image", "media"].includes(f.fieldname) || f.fieldname.startsWith("images"))
+    .filter((f) => {
+      // legacy fieldnames + indexed pattern
+      if (["images", "files", "image", "media"].includes(f.fieldname)) return true;
+      if (f.fieldname.startsWith("images") || f.fieldname.startsWith("image[")) return true;
+      return false;
+    })
     .filter((f) => f.mimetype.startsWith("image/"))
     .map((file, idx) => ({
-      // Al Rouba: url = `/uploads/products/images/${filename}` — consistent with upload.middleware destination
       imageUrl: `/uploads/products/images/${file.filename}`,
-      sortOrder: idx, // will be re-normalized after merge
+      sortOrder: idx,
+      isMain: false as boolean,
     }));
 
   const data = validateProductPayload(req.body);
 
-  // Merge body images (JSON URLs) + uploaded files (Al Rouba: mediaFromFiles) — normalize contiguous order like Al Rouba does
-  const mergedImagesInput: { imageUrl: string; sortOrder: number }[] = (() => {
-    const fromBody: { imageUrl: string; sortOrder: number }[] = data.images || [];
+  // Merge body images (JSON URLs) + uploaded files — supports both legacy and new indexed image[0] pattern
+  // If indexed pattern was used, data.images already contains merged indexed result (files + urls + isMain), avoid double-counting legacy files
+  const mergedImagesInput: { imageUrl: string; sortOrder: number; isMain: boolean }[] = (() => {
+    if (indexedForCreate && indexedForCreate.length > 0) {
+      // Indexed pattern: data.images is already the indexed result (with file URLs + isMain bool) — main determined solely by isMain
+      const sorted = (data.images as any).sort((a: any, b: any) => a.sortOrder - b.sortOrder).map((img: any, idx: number) => ({ ...img, sortOrder: idx }));
+      const perImageMain = sorted.findIndex((img: any) => (img as any).isMain === true);
+      const mainIdx = perImageMain !== -1 ? perImageMain : sorted.length > 0 ? 0 : null;
+      return sorted.map((img: any, idx: number) => ({ imageUrl: img.imageUrl, sortOrder: idx, isMain: idx === mainIdx }));
+    }
+    const fromBody: { imageUrl: string; sortOrder: number; isMain: boolean }[] = (data.images as any) || [];
     const fromFiles: typeof fromBody = uploadedImagesFromFiles.map((fi, idx) => ({
       imageUrl: fi.imageUrl,
       sortOrder: fromBody.length + idx,
+      isMain: false,
     }));
     const combined = [...fromBody, ...fromFiles];
-    // Normalize to 0-based contiguous order (Al Rouba: sort then idx)
-    return combined
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((img, idx) => ({ imageUrl: img.imageUrl, sortOrder: idx }));
+    // Normalize to 0-based contiguous order but preserve isMain flags — main is solely per-image isMain bool
+    const sorted = combined.sort((a, b) => a.sortOrder - b.sortOrder).map((img, idx) => ({ ...img, sortOrder: idx }));
+    const perImageMain = sorted.findIndex((img) => (img as any).isMain === true);
+    const mainIdx = perImageMain !== -1 ? perImageMain : sorted.length > 0 ? 0 : null;
+    // Apply isMain: only mainIdx is true, rest false (ensures single main for card)
+    return sorted.map((img, idx) => ({ imageUrl: img.imageUrl, sortOrder: idx, isMain: mainIdx !== null && idx === mainIdx }));
   })();
   // Override data.images with merged result for transaction
   (data as any).images = mergedImagesInput;
@@ -368,21 +459,27 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
     );
     await sizeRepo.save(sizeEntities);
 
-    // images
+    // images — with isMain for card display (outside show)
     if (data.images.length > 0) {
       const imageEntities = data.images.map((img: any) =>
         imageRepo.create({
           productId: savedProduct.id,
           imageUrl: img.imageUrl,
           sortOrder: img.sortOrder,
+          isMain: !!img.isMain,
         })
       );
       await imageRepo.save(imageEntities);
-      // if mainImageUrl not set but images exist, set first image as main
-      if (!savedProduct.mainImageUrl && imageEntities.length > 0) {
-        savedProduct.mainImageUrl = imageEntities[0].imageUrl;
+      // mainImageUrl for quick card lookup: use isMain image, fallback to first (order 0) like Al Rouba
+      const mainEntity = imageEntities.find((e: any) => (e as any).isMain) || imageEntities[0];
+      if (mainEntity) {
+        savedProduct.mainImageUrl = mainEntity.imageUrl;
         await productRepo.save(savedProduct);
       }
+    } else if (data.mainImageUrl) {
+      // No images rows but mainImageUrl supplied as external URL — keep it
+      savedProduct.mainImageUrl = data.mainImageUrl;
+      await productRepo.save(savedProduct);
     }
 
     await queryRunner.commitTransaction();
@@ -429,10 +526,78 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
   }
 });
 
-export const getAllProducts = asyncHandler(async (_req: Request, res: Response) => {
+export const getAllProducts = asyncHandler(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Product);
-  const products = await repo.find({ relations: { colors: true, sizes: true, images: true, category: true }, order: { id: "ASC" } as any });
-  res.status(200).json({ success: true, message: "Operation completed successfully", data: products, statusCode: 200 });
+  const categoryRepo = AppDataSource.getRepository(Category);
+
+  // ─── Filter by category (like Al Rouba division/category filter) — supports ?categoryId=1 or ?categorySlug=dresses or ?category=1|dresses|slug ───
+  const q: any = req.query;
+  let where: any = {};
+  let categoryFilterActive = false;
+  let categoryNotFound = false;
+
+  const rawCategoryId = q.categoryId ?? q.category_id ?? q.category;
+  const rawSlug = q.categorySlug ?? q.category_slug ?? q.slug;
+
+  if (rawCategoryId !== undefined && rawCategoryId !== null && rawCategoryId !== "") {
+    // if rawCategoryId is numeric string, treat as id; otherwise as slug
+    const n = Number(rawCategoryId);
+    if (Number.isInteger(n) && String(n) === String(rawCategoryId).trim()) {
+      where.categoryId = n;
+      categoryFilterActive = true;
+    } else {
+      // non-numeric -> treat value as slug (covers ?category=dresses)
+      const slug = String(rawCategoryId).trim().toLowerCase();
+      const cat = await categoryRepo.findOne({ where: { slug } });
+      if (!cat) categoryNotFound = true;
+      else {
+        where.categoryId = cat.id;
+        categoryFilterActive = true;
+      }
+    }
+  } else if (rawSlug !== undefined && rawSlug !== null && rawSlug !== "") {
+    const slug = String(rawSlug).trim().toLowerCase();
+    const cat = await categoryRepo.findOne({ where: { slug } });
+    if (!cat) categoryNotFound = true;
+    else {
+      where.categoryId = cat.id;
+      categoryFilterActive = true;
+    }
+  }
+
+  if (categoryNotFound) {
+    res.status(200).json({ success: true, message: "Operation completed successfully", data: [], statusCode: 200 });
+    return;
+  }
+
+  const products = await repo.find({
+    where: categoryFilterActive ? where : {},
+    relations: { colors: true, sizes: true, images: true, category: true },
+    order: { id: "ASC" } as any,
+  });
+  // List view: only main image + basics for card (outside show) — details endpoint returns all images
+  const listData = products.map((p) => {
+    if (p.images) p.images.sort((a, b) => a.sortOrder - b.sortOrder);
+    const mainImg = p.images?.find((img: any) => img.isMain) || p.images?.[0] || null;
+    // Basic card payload — keep light for frontend grid
+    return {
+      id: p.id,
+      name: p.name,
+      categoryId: p.categoryId,
+      category: p.category ? { id: (p.category as any).id, name: (p.category as any).name, slug: (p.category as any).slug } : null,
+      price: p.price,
+      oldPrice: p.oldPrice,
+      tag: p.tag,
+      isActive: p.isActive,
+      mainImageUrl: p.mainImageUrl || (mainImg ? mainImg.imageUrl : null),
+      mainImage: mainImg ? { id: mainImg.id, imageUrl: mainImg.imageUrl, sortOrder: mainImg.sortOrder, isMain: (mainImg as any).isMain } : null,
+      // For list we return only main image in images array to keep payload light (details has all)
+      images: mainImg ? [mainImg] : [],
+      colors: p.colors,
+      createdAt: (p as any).createdAt,
+    };
+  });
+  res.status(200).json({ success: true, message: "Operation completed successfully", data: listData, statusCode: 200 });
 });
 
 export const getProductById = asyncHandler(async (req: Request, res: Response) => {
@@ -463,28 +628,46 @@ export const addProductImages = asyncHandler(async (req: Request, res: Response)
     return out;
   })();
 
-  const imageFiles = uploadedFiles.filter((f) => f.mimetype.startsWith("image/"));
-  // also allow body-provided URLs (external or already uploaded) via images array
-  let bodyImages: { imageUrl: string; sortOrder?: number }[] = [];
-  if (req.body.images) {
-    const parsed = tryParseJsonArray(req.body.images) ?? (Array.isArray(req.body.images) ? req.body.images : null);
-    if (parsed) {
-      bodyImages = parsed.map((img: any, idx: number) => {
-        if (typeof img === "string") return { imageUrl: img, sortOrder: idx };
-        return { imageUrl: String(img.imageUrl ?? img.image_url ?? img.url).trim(), sortOrder: img.sortOrder ?? idx };
-      });
-    } else if (Array.isArray(req.body.images)) {
-      bodyImages = req.body.images;
+  // ─── Frontend-easy indexed pattern: image[0] + image[0].isMain + image[0].url — isMain bool is the ONLY main selector ───
+  const indexedAdd = parseIndexedImages(req.body, uploadedFiles);
+  let newImagesInput: { imageUrl: string; sortOrder?: number; isMain?: boolean }[] = [];
+  if (indexedAdd && indexedAdd.length > 0) {
+    newImagesInput = indexedAdd;
+    if (((req.body as any).isMain === "true" || (req.body as any).isMain === true || (req.body as any).makeMain === "true" || (req.body as any).main === "true") && !newImagesInput.some((i) => i.isMain)) {
+      newImagesInput[0].isMain = true;
+    }
+  } else {
+    const imageFiles = uploadedFiles.filter((f) => f.mimetype.startsWith("image/"));
+    // also allow body-provided URLs (external or already uploaded) via images array — supports isMain for card
+    let bodyImages: { imageUrl: string; sortOrder?: number; isMain?: boolean }[] = [];
+    if (req.body.images) {
+      const parsed = tryParseJsonArray(req.body.images) ?? (Array.isArray(req.body.images) ? req.body.images : null);
+      if (parsed) {
+        bodyImages = parsed.map((img: any, idx: number) => {
+          if (typeof img === "string") return { imageUrl: img, sortOrder: idx, isMain: false };
+          const isMain = img.isMain !== undefined ? Boolean(img.isMain === "true" ? true : img.isMain === "false" ? false : img.isMain) : img.is_main !== undefined ? Boolean(img.is_main) : false;
+          return { imageUrl: String(img.imageUrl ?? img.image_url ?? img.url).trim(), sortOrder: img.sortOrder ?? idx, isMain };
+        });
+      } else if (Array.isArray(req.body.images)) {
+        bodyImages = req.body.images;
+      }
+    }
+    // also support single imageUrl field
+    if (req.body.imageUrl && typeof req.body.imageUrl === "string") {
+      bodyImages.push({ imageUrl: req.body.imageUrl.trim(), sortOrder: bodyImages.length, isMain: req.body.isMain === "true" || req.body.isMain === true });
+    }
+
+    const fileImages = imageFiles.map((file, idx) => ({ imageUrl: `/uploads/products/images/${file.filename}`, sortOrder: 0, isMain: false }));
+    newImagesInput = [...bodyImages, ...fileImages];
+    if (newImagesInput.length === 0) throw AppError.badRequest("No image files or imageUrl provided");
+  // also handle body-level isMain/makeMain flag for file add
+  if (req.body.isMain === "true" || req.body.isMain === true || req.body.makeMain === "true" || req.body.main === "true") {
+    // make first new image main if none already marked
+    if (!newImagesInput.some((i) => i.isMain)) {
+      newImagesInput[0].isMain = true;
     }
   }
-  // also support single imageUrl field
-  if (req.body.imageUrl && typeof req.body.imageUrl === "string") {
-    bodyImages.push({ imageUrl: req.body.imageUrl.trim(), sortOrder: bodyImages.length });
-  }
-
-  const fileImages = imageFiles.map((file) => ({ imageUrl: `/uploads/products/images/${file.filename}`, sortOrder: 0 }));
-  const newImagesInput = [...bodyImages, ...fileImages];
-  if (newImagesInput.length === 0) throw AppError.badRequest("No image files or imageUrl provided");
+  } // end else (non-indexed legacy path)
 
   const productRepo = AppDataSource.getRepository(Product);
   const imageRepo = AppDataSource.getRepository(ProductImage);
@@ -492,18 +675,33 @@ export const addProductImages = asyncHandler(async (req: Request, res: Response)
   const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
   if (!product) {
     // cleanup uploaded files on failure
-    for (const f of imageFiles) deleteFile(`/uploads/products/images/${f.filename}`);
+    for (const f of uploadedFiles.filter((x) => x.mimetype.startsWith("image/"))) {
+      try { deleteFile(`/uploads/products/images/${f.filename}`); } catch {}
+      try { deleteFile((f as any).path); } catch {}
+    }
     throw AppError.notFound("Product not found");
+  }
+
+  // If any new image is marked as main, clear existing mains (partial unique index)
+  const wantsMain = newImagesInput.some((i) => i.isMain);
+  if (wantsMain) {
+    await imageRepo.createQueryBuilder().update().set({ isMain: false }).where("product_id = :pid AND is_main = true", { pid: id }).execute();
+    // also clear in-memory for consistency
+    for (const img of product.images) (img as any).isMain = false;
   }
 
   const nextOrder = product.images.length > 0 ? Math.max(...product.images.map((i) => i.sortOrder)) + 1 : 0;
   const entities = newImagesInput.map((img, idx) =>
-    imageRepo.create({ productId: id, imageUrl: img.imageUrl, sortOrder: nextOrder + idx })
+    imageRepo.create({ productId: id, imageUrl: img.imageUrl, sortOrder: nextOrder + idx, isMain: !!img.isMain })
   );
   await imageRepo.save(entities);
 
-  // if product had no mainImageUrl, set it to first image (order 0)
-  if (!product.mainImageUrl) {
+  // mainImageUrl for card: use isMain image if exists, else first order 0
+  const mainFromNew = entities.find((e) => (e as any).isMain);
+  if (mainFromNew) {
+    product.mainImageUrl = mainFromNew.imageUrl;
+    await productRepo.save(product);
+  } else if (!product.mainImageUrl) {
     const first = [...product.images, ...entities].sort((a, b) => a.sortOrder - b.sortOrder)[0];
     if (first) {
       product.mainImageUrl = first.imageUrl;
@@ -537,6 +735,7 @@ export const removeProductImage = asyncHandler(async (req: Request, res: Respons
   if (!target) target = product.images.find((img) => img.id === parsedOrder);
   if (!target) throw AppError.notFound(`No image found with order/id ${parsedOrder}`);
 
+  const wasMain = (target as any).isMain === true || product.mainImageUrl === target.imageUrl;
   deleteFile(target.imageUrl);
   await imageRepo.remove(target);
 
@@ -549,11 +748,32 @@ export const removeProductImage = asyncHandler(async (req: Request, res: Respons
     }
   }
 
-  // if removed image was mainImageUrl, update main to new first
-  if (product.mainImageUrl === target.imageUrl) {
-    const newFirst = remaining[0];
-    product.mainImageUrl = newFirst ? newFirst.imageUrl : null;
+  // ensure exactly one isMain for card display if any images remain
+  if (remaining.length > 0) {
+    const hasMain = remaining.some((r) => (r as any).isMain);
+    if (!hasMain || wasMain) {
+      // if removed was main or no main remains, promote first remaining as main
+      const first = remaining.sort((a, b) => a.sortOrder - b.sortOrder)[0];
+      if (first) {
+        // clear others
+        await imageRepo.createQueryBuilder().update().set({ isMain: false }).where("product_id = :pid", { pid: id }).execute();
+        first.isMain = true as any;
+        await imageRepo.save(first);
+        product.mainImageUrl = first.imageUrl;
+        await productRepo.save(product);
+      }
+    }
+  } else {
+    product.mainImageUrl = null;
     await productRepo.save(product);
+  }
+  // if removed was mainImageUrl but remaining already has new main, ensure mainImageUrl synced
+  if (wasMain && remaining.length > 0 && product.mainImageUrl === target.imageUrl) {
+    const newMain = remaining.find((r) => (r as any).isMain) || remaining[0];
+    if (newMain) {
+      product.mainImageUrl = newMain.imageUrl;
+      await productRepo.save(product);
+    }
   }
 
   const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
@@ -604,15 +824,48 @@ export const reorderProductImages = asyncHandler(async (req: Request, res: Respo
   item.sortOrder = parsedNew;
   await imageRepo.save(item);
 
-  // if order 0 changed, update mainImageUrl to new first
-  const sorted = [...product.images].sort((a, b) => a.sortOrder - b.sortOrder);
-  const newMain = sorted[0];
-  if (newMain && product.mainImageUrl !== newMain.imageUrl) {
-    product.mainImageUrl = newMain.imageUrl;
+  // Keep mainImageUrl synced to isMain image for card (not order 0). Do not auto-change main on reorder unless isMain was moved
+  // Find isMain image (if any) else fallback to order 0
+  const allForMain = await imageRepo.find({ where: { productId: id }, order: { sortOrder: "ASC" } });
+  const isMainImg = allForMain.find((img) => (img as any).isMain) || allForMain[0];
+  if (isMainImg && product.mainImageUrl !== isMainImg.imageUrl) {
+    product.mainImageUrl = isMainImg.imageUrl;
     await productRepo.save(product);
   }
 
   const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
   if (updated?.images) updated.images.sort((a, b) => a.sortOrder - b.sortOrder);
   res.status(200).json({ success: true, message: "Images reordered successfully", data: updated, statusCode: 200 });
+});
+
+// Set main image for card display — isMain attribute (outside card show)
+export const setMainProductImage = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw AppError.badRequest("Invalid product id");
+  const { imageId, order, sortOrder } = req.body;
+  const raw = imageId ?? order ?? sortOrder ?? req.params.order ?? (req.params as any).imageId;
+  if (raw === undefined || raw === null) throw AppError.badRequest("imageId or order is required");
+  const n = Number(raw);
+  if (Number.isNaN(n)) throw AppError.badRequest("imageId/order must be a number");
+
+  const productRepo = AppDataSource.getRepository(Product);
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+  const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
+  if (!product) throw AppError.notFound("Product not found");
+
+  let target = product.images.find((img) => img.id === n);
+  if (!target) target = product.images.find((img) => img.sortOrder === n);
+  if (!target) throw AppError.notFound(`No image found with id/order ${n}`);
+
+  // Clear existing mains and set target as main (partial unique ensures one main)
+  await imageRepo.createQueryBuilder().update().set({ isMain: false }).where("product_id = :pid", { pid: id }).execute();
+  target.isMain = true as any;
+  await imageRepo.save(target);
+
+  product.mainImageUrl = target.imageUrl;
+  await productRepo.save(product);
+
+  const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
+  if (updated?.images) updated.images.sort((a, b) => a.sortOrder - b.sortOrder);
+  res.status(200).json({ success: true, message: "Main image set successfully", data: updated, statusCode: 200 });
 });

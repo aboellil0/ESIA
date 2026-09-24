@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ESIA API",
-      "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-24 - Added Categories + Products\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)",
+    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-24 - Added Categories + Products\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "esia-api-2026-09-21"
   },
@@ -46,14 +46,18 @@
       "listen": "prerequest",
       "script": {
         "type": "text/javascript",
-        "exec": [""]
+        "exec": [
+          ""
+        ]
       }
     },
     {
       "listen": "test",
       "script": {
         "type": "text/javascript",
-        "exec": [""]
+        "exec": [
+          ""
+        ]
       }
     }
   ],
@@ -68,8 +72,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
             },
             "description": "Root probe - no auth. Returns { message: \"ESIA API is running\", status: \"ok\" }\nDefined in Backend/src/app.ts:64"
           },
@@ -82,8 +90,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
             },
             "description": "Health check - app.ts:67 - { status: \"ok\", uptime: number }"
           },
@@ -96,8 +109,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ]
             },
             "description": "Mirrored health - app.ts:70 - { status: \"ok\", message: \"Backend is running\" }"
           },
@@ -110,8 +129,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api",
-              "host": ["{{baseUrl}}"],
-              "path": ["api"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api"
+              ]
             },
             "description": "Generic router index - routes/index.ts:6 - { message: \"API v1\" }\nAlso available as /api/v1"
           },
@@ -124,8 +147,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1"
+              ]
             },
             "description": "Same as /api - mounted twice in app.ts:77-78"
           },
@@ -142,7 +170,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -150,8 +181,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
             },
             "description": "Public. controller: auth.controller.ts:6, service: auth.service.ts:19\nRequires: name, email, password, phone optional.\nPassword policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces. Example: \"Password123!\"\n201 -> { success:true, data:{ id, name, email, phone } }\n400 if weak password, 409 if email exists. Email lowercased."
           },
@@ -176,7 +213,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -184,8 +224,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
             },
             "description": "Public unified login (single endpoint). auth.controller.ts:12, auth.service.ts:39\nAccepts identifier|email|username + password. Checks Admin table first, then User table. Returns role accordingly.\n200 -> { accessToken (JWT 15m, role claim), refreshToken (opaque 7d), tokenExpiration, refreshTokenExpiration, deviceId, user:{id,name,email,role:\"user\"|\"admin\"} }\nTest script auto-saves tokens to collection variables."
           },
@@ -210,7 +256,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -218,8 +267,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "refresh"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
             },
             "description": "Public but requires valid refreshToken in body (NOT header). auth.controller.ts:28, auth.service.ts:91\nRotates token: old deleted, new pair returned. 401 if invalid/expired/revoked.\nTest script auto-updates {{accessToken}} and {{refreshToken}}."
           },
@@ -230,7 +285,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -238,8 +296,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/logout",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "logout"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
             },
             "description": "Public, revokes refresh token. auth.controller.ts:34, auth.service.ts:134\nBody: { refreshToken }. If omitted, still 200 but nothing revoked. Always 200 { success:true, data:null }."
           },
@@ -263,8 +327,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/categories",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
             },
             "description": "Public. controller: category.controller.ts:getAllCategories. Returns all categories ordered by id ASC.\n200 -> { success:true, data:[{id,name,slug}], statusCode:200 }\nAlso available as /api/v1/categories"
           },
@@ -277,8 +346,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/categories/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories", "1"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "1"
+              ]
             },
             "description": "Public. category.controller.ts:getCategoryById. Param id must be integer.\n200 -> { success:true, data:{id,name,slug} }\n400 if invalid id, 404 if not found.\nAlso available as /api/v1/categories/:id"
           },
@@ -291,8 +366,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/categories/slug/dresses",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories", "slug", "dresses"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "slug",
+                "dresses"
+              ]
             },
             "description": "Public. category.controller.ts:getCategoryBySlug. Lookup by unique slug (e.g. dresses, bags).\n200 -> { success:true, data:{id,name,slug} }\n404 if not found."
           },
@@ -303,8 +385,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -312,8 +400,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/categories",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
             },
             "description": "Admin only (protect + adminOnly). category.controller.ts:createCategory\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nBody: { name (required), slug (optional) } -> slug normalized via slugify().\n201 -> { success:true, message:\"Category created successfully\", data:{id,name,slug}, statusCode:201 }\n400 if validation fails, 401 if no token, 403 if not admin, 409 if name or slug already exists."
           },
@@ -324,8 +417,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -333,8 +432,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/categories/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories", "1"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "1"
+              ]
             },
             "description": "Admin only (protect + adminOnly). category.controller.ts:updateCategory. Route: PATCH /api/categories/:id (PUT removed).\nRequires Bearer admin token. At least one of name/slug must be provided.\n200 -> { success:true, message:\"Category updated successfully\", data:{id,name,slug}, statusCode:200 }\n400 if no fields or invalid, 404 if not found, 409 if duplicate name/slug."
           },
@@ -345,12 +450,21 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/categories/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "categories", "1"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "1"
+              ]
             },
             "description": "Admin only (protect + adminOnly). category.controller.ts:deleteCategory\nRequires Bearer admin token. Deletes category by id; FK ON DELETE CASCADE will also delete its products (see migrations/1710000000000-Init.ts:30).\n200 -> { success:true, message:\"Category deleted successfully\", data:null, statusCode:200 }\n400 if invalid id, 404 if not found, 401/403 if not admin."
           },
@@ -368,11 +482,23 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products"]
+              "raw": "{{baseUrl}}/api/products?categoryId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "1",
+                  "description": "Filter by category id OR use categorySlug/dresses slug. Omit for all."
+                }
+              ]
             },
-            "description": "Public. product.controller.ts:getAllProducts. Returns all products with relations colors/sizes/images/category ordered by id ASC.\n200 -> { success:true, data:[{id,name,categoryId,price,oldPrice,tag,defaultShape,shortDescription,isActive,mainImageUrl,createdAt, colors:[{id,nameEn,nameAr,hexCode}], sizes:[{id,size,isAvailable}], images:[{id,imageUrl,sortOrder}], category:{id,name,slug}}], statusCode:200 }\nAlso available as /api/v1/products"
+            "description": "Public. product.controller.ts:getAllProducts — LIST view (card outside). Returns ONLY main image + basics for grid (like Al Rouba public list shows first 3). Supports category filter: ?categoryId=1 (int) or ?categorySlug=dresses or ?category=dresses|1 or ?slug=dresses. Query params: categoryId, categorySlug, category, slug. If category not found → [] 200. Images in list are filtered to only isMain=true (single) for lightweight payload; mainImageUrl also provided for quick card. For full details with all images, use GET /api/products/:id (details).\n\nResponse shape for list (basic): [{ id, name, categoryId, category:{id,name,slug}, price, oldPrice, tag, isActive, mainImageUrl, mainImage:{id,imageUrl,sortOrder,isMain}, images:[mainImage], colors:[{id,nameEn,nameAr,hexCode}], createdAt }]\n\nExamples: GET /api/products, GET /api/products?categoryId=1, GET /api/products?categorySlug=dresses, GET /api/products?category=bags\nAlso available as /api/v1/products."
           },
           "response": []
         },
@@ -383,31 +509,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/products/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products", "1"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1"
+              ]
             },
-            "description": "Public. product.controller.ts:getProductById. Param id must be integer.\n200 -> { success:true, data:{id,name,colors,sizes,images,category}, statusCode:200 }\n400 if invalid id, 404 if not found.\nAlso available as /api/v1/products/:id"
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/products - Create (Admin) - JSON (Al Rouba best: main is order 0)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Puff Sleeve Dress\",\n  \"categoryId\": 1,\n  \"price\": 1299,\n  \"oldPrice\": 1599,\n  \"tag\": \"new\",\n  \"defaultShape\": \"puff_sleeves\",\n  \"shortDescription\": \"Demo dress - puff sleeves default shape\",\n  \"isActive\": true,\n  \"mainImageUrl\": \"/uploads/demo.jpg\",\n  \"colors\": [1, 2],\n  \"sizes\": [\n    { \"size\": \"S\", \"isAvailable\": true },\n    { \"size\": \"M\", \"isAvailable\": true },\n    { \"size\": \"L\", \"isAvailable\": false }\n  ],\n  \"images\": [\n    { \"imageUrl\": \"/uploads/demo.jpg\", \"sortOrder\": 0 }\n  ]\n}\n// JSON variant — best for testing logic without files. Al Rouba: media[].order as main (0 = main), normalized contiguous.\n// Required: name 2-200, categoryId|categorySlug, price, colors [IDs], sizes [S|M|L|XL]\n// Optional: oldPrice, tag none|new|best_seller, defaultShape, shortDescription, isActive, mainImageUrl (if omitted, auto-set to first image order 0 like Al Rouba), images [{imageUrl, sortOrder}]\n// colors: [1,2] palette IDs cloned via In() — no DB change — see product.controller.ts:80\n// For multipart file upload, use the next request (POST multipart). JSON + multipart both normalized to contiguous sortOrder."
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/products",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products"]
-            },
-            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:createProduct — JSON variant\nRequires Bearer admin. Uses same validation as multipart variant. Images via imageUrl strings stored as ProductImage rows with sortOrder; mainImageUrl auto-set to first image (order 0) like Al Rouba's media[0].\n201 -> { success:true, data:{id, colors:[cloned], sizes, images, category}}\nAlso supports multipart: see next request for file upload best scenario (multer + sharp 80 + 3MB limit)."
+            "description": "Public. product.controller.ts:getProductById — DETAILS view. Returns ALL images with isMain flags + full relations (unlike list which returns only main). Images sorted by sortOrder, isMain indicates card main (outside). Use for product details page.\n200 -> { success:true, data:{id,name,categoryId,price,colors:[{id,nameEn,nameAr,hexCode}], sizes, images:[{id,imageUrl,sortOrder,isMain}], category, mainImageUrl, ...}}\n400 if invalid id, 404 if not found."
           },
           "response": []
         },
@@ -416,31 +527,129 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "name", "value": "Puff Sleeve Dress", "type": "text" },
-                { "key": "categoryId", "value": "1", "type": "text" },
-                { "key": "price", "value": "1299", "type": "text" },
-                { "key": "oldPrice", "value": "1599", "type": "text" },
-                { "key": "tag", "value": "new", "type": "text" },
-                { "key": "defaultShape", "value": "puff_sleeves", "type": "text" },
-                { "key": "shortDescription", "value": "Demo dress - puff sleeves default shape", "type": "text" },
-                { "key": "isActive", "value": "true", "type": "text" },
-                { "key": "colors", "value": "[1,2]", "type": "text", "description": "JSON-stringified array of ProductColor IDs — Al Rouba formParsers pattern: tryParseJsonArray. Alternative: send as multiple fields or comma-separated." },
-                { "key": "sizes", "value": "[\"S\",\"M\",\"L\"]", "type": "text", "description": "JSON-stringified sizes array — also supports [{size:\"S\",isAvailable:true}]. Parsed via tryParseJsonArray like Al Rouba." },
-                { "key": "images", "value": "", "type": "file", "description": "Fieldname 'images' (also accepts 'files'/'image'/'media') — Al Rouba upload.middleware: safe mimeToExt, diskStorage to /uploads/products/images/<unique>.jpg, limits 30MB overall, media.middleware validates 3MB image limit then sharp compresses (jpeg 80/png 6/webp 80) before controller. Up to 20 files. Order preserved then normalized 0..n." },
-                { "key": "images", "value": "", "type": "file", "description": "Second image — order auto 1, main remains order 0." }
+                {
+                  "key": "name",
+                  "value": "Puff Sleeve Dress",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "1",
+                  "type": "text",
+                  "description": "or categorySlug=dresses"
+                },
+                {
+                  "key": "price",
+                  "value": "1299",
+                  "type": "text"
+                },
+                {
+                  "key": "oldPrice",
+                  "value": "1599",
+                  "type": "text"
+                },
+                {
+                  "key": "tag",
+                  "value": "new",
+                  "type": "text",
+                  "description": "none|new|best_seller"
+                },
+                {
+                  "key": "defaultShape",
+                  "value": "puff_sleeves",
+                  "type": "text"
+                },
+                {
+                  "key": "shortDescription",
+                  "value": "Demo dress - puff sleeves default shape",
+                  "type": "text"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "colors",
+                  "value": "[1,2]",
+                  "type": "text",
+                  "description": "JSON-stringified array of ProductColor IDs (cloned via In()) — e.g. [1,2] where 1=pink,2=black"
+                },
+                {
+                  "key": "sizes",
+                  "value": "[\"S\",\"M\",\"L\"]",
+                  "type": "text",
+                  "description": "JSON-stringified sizes array — also supports [{size:\"S\",isAvailable:true}]"
+                },
+                {
+                  "key": "image[0]",
+                  "value": "",
+                  "type": "file",
+                  "description": "File for index 0 — fieldname MUST be image[0] (also supports images[0] or image[0].file). Al Rouba: safe mimeToExt, diskStorage uploads/products/images/<unique>.jpg, 3MB limit, sharp compress jpeg80/png6/webp80."
+                },
+                {
+                  "key": "image[0].isMain",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Bool — true makes this image the main for card outside (is_main=true). Only one per product (partial unique index)."
+                },
+                {
+                  "key": "image[0].url",
+                  "value": "",
+                  "type": "text",
+                  "description": "Optional external URL for index 0 if not uploading file — if file provided, file takes precedence. Leave empty when using file."
+                },
+                {
+                  "key": "image[1]",
+                  "value": "",
+                  "type": "file",
+                  "description": "File for index 1 — image[1]"
+                },
+                {
+                  "key": "image[1].isMain",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Bool — false for non-main. Only one true allowed."
+                },
+                {
+                  "key": "image[1].url",
+                  "value": "https://example.com/external.jpg",
+                  "type": "text",
+                  "description": "Example external URL alternative to file — will be stored as-is (deleteFile skips http)."
+                },
+                {
+                  "key": "image[2].url",
+                  "value": "/uploads/custom.jpg",
+                  "type": "text",
+                  "description": "Example URL-only image without file — stored as ProductImage with isMain false."
+                },
+                {
+                  "key": "image[2].isMain",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Bool — false for non-main. Only one true allowed per product."
+                }
               ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/products",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
             },
-            "description": "Admin only — Al Rouba best scenario: multer + sharp + main is order 0.\n\nFlow (mirrors Al Rouba Website/backend/src/middleware/upload.middleware.ts + media.middleware.ts + services/media.service.ts):\n1) Multer diskStorage: destination `uploads/products/images`, filename `<Date.now>-<rand>.jpg` via safe mimeToExt (never trust original ext — prevents polyglot), fileFilter allows jpg/png/webp/gif/pdf, limits 30MB (upload.middleware.ts:85).\n2) processMedia: validates each image ≤3MB (video ≤30MB) else deletes all batch files and returns 400; compresses images in parallel via sharp (jpeg 80, png compaction 6, webp 80) overwriting original with temp file (media.middleware.ts:38, media.service.ts:11). Failures swallowed → keep original.\n3) Controller: merges body images (imageUrl strings) + uploaded files (`/uploads/products/images/<filename>`) into `mergedImagesInput`, normalizes sortOrder contiguous 0..n (like Al Rouba product.service createProduct normaliseMedia orders), saves as ProductImage rows (product_images table: image_url, sort_order), auto-sets mainImageUrl to first image (order 0) if not supplied — same as Al Rouba where product.media[0] is main.\n4) Storage: files under `Backend/uploads/products/images/` served via `app.ts:83` express.static('/uploads').\n5) Cleanup: on transaction rollback, delete uploaded files via fileUtils.deleteFile (like Al Rouba deleteFile on removeMedia/deleteProduct).\n\nSupported Content-Type: multipart/form-data. Also still supports pure JSON (previous request). Example curl: curl -X POST -H \"Authorization: Bearer $TOKEN\" -F \"name=...\" -F \"categoryId=1\" -F \"price=1299\" -F \"colors=[1,2]\" -F \"sizes=[\\\"S\\\",\\\"M\\\"]\" -F \"images=@/path/img1.jpg\" -F \"images=@/path/img2.jpg\" http://localhost:5000/api/products"
+            "description": "Admin only — Al Rouba best + frontend-easy indexed images (image[0] pattern) — isMain bool is the ONLY main selector (no mainImageIndex).\n\nFlow (multer + sharp + isMain for card):\n1) Multer diskStorage safe mimeToExt → uploads/products/images/<Date.now>-<rand>.jpg, fileFilter jpg/png/webp/gif, limits 30MB, fieldname image[0] / image[0].file / images[0] all accepted (upload.middleware.ts:21).\n2) processMedia validates image ≤3MB else 400 + deletes batch, sharp compresses parallel (jpeg80/png6/webp80) via temp file (media.middleware.ts:11, media.service.ts:11).\n3) Controller parseIndexedImages(req.body, files) builds map image[0] -> {file, url, isMain, sortOrder}, merges file+url, sorts, normalizes sortOrder 0..n, determines main SOLELY by per-index isMain bool (exactly one true enforced, partial unique index UQ_product_images_main; if none true, first image becomes main; if multiple true → 400). Syncs products.main_image_url to isMain image for fast card lookup.\n4) Also supports legacy: fieldname images/files + body.images JSON (with isMain) — both work.\n5) Storage served via app.ts:83 /uploads static. Cleanup on rollback via fileUtils.deleteFile.\n\nIndexed example curl (frontend-easy):\n curl -X POST http://localhost:5000/api/products -H \"Authorization: Bearer $TOKEN\" \\\n  -F \"name=Puff Sleeve Dress\" -F \"categoryId=1\" -F \"price=1299\" -F \"colors=[1,2]\" -F \"sizes=[\\\"S\\\",\\\"M\\\"]\" \\\n  -F \"image[0]=@/path/img1.jpg\" -F \"image[0].isMain=true\" \\\n  -F \"image[1]=@/path/img2.jpg\" -F \"image[1].isMain=false\" \\\n  -F \"image[2].url=https://example.com/ext.jpg\" -F \"image[2].isMain=false\"\n\nList view (GET /api/products) returns only main image for card; details (GET /:id) returns all images with isMain flags."
           },
           "response": []
         },
@@ -449,21 +658,58 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "images", "value": "", "type": "file", "description": "Fieldname images/files/media — multiple allowed. Files saved to /uploads/products/images, compressed via sharp, appended with nextOrder = max(sortOrder)+1 like Al Rouba ProductService.addMedia (nextOrder)." },
-                { "key": "imageUrl", "value": "https://example.com/external.jpg", "type": "text", "description": "Optional external URL — also accepted via images array JSON. Stored as-is (deleteFile skips http)." }
+                {
+                  "key": "image[0]",
+                  "value": "",
+                  "type": "file",
+                  "description": "Indexed file image[0] — preferred frontend-easy"
+                },
+                {
+                  "key": "image[0].isMain",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Make this new image the main for card (clears old main)"
+                },
+                {
+                  "key": "image[1]",
+                  "value": "",
+                  "type": "file",
+                  "description": "Second new image image[1]"
+                },
+                {
+                  "key": "image[1].isMain",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "image[2].url",
+                  "value": "https://example.com/ext.jpg",
+                  "type": "text",
+                  "description": "Optional url-only indexed"
+                }
               ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/products/1/images",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products", "1", "images"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "images"
+              ]
             },
-            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:addProductImages — mirrors Al Rouba POST /:id/media (product.service addMedia).\nAccepts multipart files (images/files) + optional body images array / imageUrl. Files validated 3MB, sharp compressed. Appends to product with sortOrder = max(existing)+1+idx (like Al Rouba nextOrder). If product had no mainImageUrl, sets it to first image (order 0). Returns updated product with sorted images.\nAlso available as POST /api/products/:id/media (alias).\n200 -> { success:true, data:{id, images:[sorted], mainImageUrl}}\n400 if no files, 404 if product not found."
+            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:addProductImages — mirrors Al Rouba addMedia but with indexed support.\nAccepts indexed: image[0] file + image[0].isMain + image[0].url (frontend-easy) OR legacy images/files + body images array / imageUrl. Files validated 3MB, sharp compressed, appended with nextOrder = max(sortOrder)+1. If any new image has isMain=true, clears existing is_main via UPDATE ... WHERE is_main=true, sets new main, syncs mainImageUrl. If no isMain, keeps existing main. Example: POST /api/products/1/images -F \"image[0]=@new.jpg\" -F \"image[0].isMain=true\" . Returns updated product with sorted images (isMain flags).\nAlso available as POST /api/products/:id/media."
           },
           "response": []
         },
@@ -472,12 +718,23 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/products/1/images/0",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products", "1", "images", "0"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "images",
+                "0"
+              ]
             },
             "description": "Admin only. product.controller.ts:removeProductImage — mirrors Al Rouba DELETE /:id/media (removeMedia by order).\nParam :order is sortOrder (preferred) or image id — finds image where sortOrder==order or id==order. Physically deletes file via fileUtils.deleteFile (skips http), removes DB row, then re-normalizes remaining sortOrders to 0,1,2... like Al Rouba (map idx). If removed was mainImageUrl, updates main to new first image (order 0) else null.\nAlso supports DELETE /api/products/:id/media with body {order} or {imageId}.\n200 -> { success:true, data:{updated product}}\n404 if product or image not found."
           },
@@ -488,8 +745,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -497,10 +760,53 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/products/1/images/reorder",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products", "1", "images", "reorder"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "images",
+                "reorder"
+              ]
             },
             "description": "Admin only. product.controller.ts:reorderProductImages — mirrors Al Rouba PUT /:id/media/reorder (product.service reorderMedia).\nBody: { currentOrder:number, newOrder:number }. Finds image by sortOrder==currentOrder, shifts others between old/new by ±1 (like Al Rouba shifting logic), sets item.order=newOrder, re-sorts, updates mainImageUrl to new first (order 0) if changed.\nAlso available as PUT /api/products/:id/media/reorder.\n200 -> { success:true, data:{images sorted}}\n400 if missing/invalid orders, 404 if product or image not found."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/products/:id/images/main - Set main (Admin) - isMain for card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": 5\n}\n// or { \"order\": 0 } or { \"sortOrder\": 1 }\n// Sets is_main=true for given image, clears others (partial unique), syncs mainImageUrl for card outside."
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/images/main",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "images",
+                "main"
+              ]
+            },
+            "description": "Admin only (protect + adminOnly). product.controller.ts:setMainProductImage — sets isMain boolean for card display (outside show).\nBody: { imageId:number } or { order:number } or { sortOrder:number } — finds by id or sortOrder. Clears existing is_main via UPDATE ... WHERE product_id=:pid, sets target is_main=true, syncs products.main_image_url to target.imageUrl for fast card lookup.\nAlso available as PUT /api/products/:id/images/main and PATCH /api/products/:id/media/main.\n200 -> { success:true, data:{updated product with images sorted, isMain flags}, statusCode:200 }\n400 if missing/invalid, 404 if product/image not found."
           },
           "response": []
         }

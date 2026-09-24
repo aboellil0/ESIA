@@ -9,6 +9,7 @@ import {
   addProductImages,
   removeProductImage,
   reorderProductImages,
+  setMainProductImage,
 } from "../controllers/product.controller";
 
 const router = Router();
@@ -35,5 +36,10 @@ router.delete("/:id/media", protect, adminOnly, removeProductImage);
 // Reorder images: body { currentOrder, newOrder } — like Al Rouba PUT /:id/media/reorder
 router.put("/:id/images/reorder", protect, adminOnly, reorderProductImages);
 router.put("/:id/media/reorder", protect, adminOnly, reorderProductImages);
+
+// Set main image for card (isMain attribute) — is_main boolean + mainImageUrl synced
+router.patch("/:id/images/main", protect, adminOnly, setMainProductImage);
+router.put("/:id/images/main", protect, adminOnly, setMainProductImage);
+router.patch("/:id/media/main", protect, adminOnly, setMainProductImage);
 
 export default router;

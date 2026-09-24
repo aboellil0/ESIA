@@ -24,4 +24,8 @@ export class ProductImage {
   @Column({ name: "sort_order", type: "int", default: 0 })
   @Expose()
   sortOrder!: number;
+
+  @Column({ name: "is_main", type: "boolean", default: false })
+  @Expose()
+  isMain!: boolean;
 }
