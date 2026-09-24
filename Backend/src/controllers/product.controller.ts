@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Product } from "../models/Product";
 import { ProductColor } from "../models/ProductColor";
@@ -8,8 +9,6 @@ import { Category } from "../models/Category";
 import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import { asyncHandler } from "../utils/asyncHandler";
-
-const HEX_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
 function validateProductPayload(body: any) {
   const errors: string[] = [];
@@ -77,48 +76,24 @@ function validateProductPayload(body: any) {
     else if (body.mainImageUrl.length > 2000) errors.push("mainImageUrl too long");
   }
 
-  // colors required
+  // colors required — now array of existing ProductColor IDs (no DB change)
+  // User request: when adding a product, colors are provided as array of color IDs (e.g. [1,2])
+  // We keep product_colors table unchanged (id, product_id, name_en, name_ar, hex_code) and clone the
+  // referenced palette rows for the new product inside the transaction.
   if (!Array.isArray(body.colors) || body.colors.length === 0) {
-    errors.push("colors is required and must be a non-empty array of { nameEn, nameAr, hexCode }");
+    errors.push("colors is required and must be a non-empty array of existing ProductColor IDs (e.g. [1,2])");
   } else {
-    const seenEn = new Set<string>();
-    const seenAr = new Set<string>();
-    const seenHex = new Set<string>();
+    if (body.colors.length > 20) errors.push("colors must contain at most 20 items");
+    const seenIds = new Set<number>();
     body.colors.forEach((c: any, idx: number) => {
-      if (!c || typeof c !== "object") {
-        errors.push(`colors[${idx}] must be an object`);
+      const n = Number(c);
+      if (c === null || c === undefined || c === "" || Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
+        errors.push(`colors[${idx}] must be a positive integer ID (existing product_colors.id)`);
         return;
       }
-      // support legacy {color} fallback -> map to nameEn
-      const nameEn = c.nameEn ?? c.name_en ?? c.color;
-      const nameAr = c.nameAr ?? c.name_ar;
-      const hexCode = c.hexCode ?? c.hex_code ?? c.hex;
-
-      if (typeof nameEn !== "string" || !nameEn.trim()) errors.push(`colors[${idx}].nameEn is required`);
-      else if (nameEn.trim().length < 1 || nameEn.trim().length > 50) errors.push(`colors[${idx}].nameEn must be 1-50 chars`);
-      else {
-        const lower = nameEn.trim().toLowerCase();
-        if (seenEn.has(lower)) errors.push(`colors[${idx}].nameEn "${nameEn}" is duplicate within product`);
-        else seenEn.add(lower);
-      }
-
-      if (typeof nameAr !== "string" || !nameAr.trim()) errors.push(`colors[${idx}].nameAr is required`);
-      else if (nameAr.trim().length < 1 || nameAr.trim().length > 50) errors.push(`colors[${idx}].nameAr must be 1-50 chars`);
-      else {
-        const key = nameAr.trim();
-        if (seenAr.has(key)) errors.push(`colors[${idx}].nameAr "${nameAr}" is duplicate within product`);
-        else seenAr.add(key);
-      }
-
-      if (typeof hexCode !== "string" || !hexCode.trim()) errors.push(`colors[${idx}].hexCode is required`);
-      else if (!HEX_REGEX.test(hexCode.trim())) errors.push(`colors[${idx}].hexCode must match ^#[0-9A-Fa-f]{6}$ (e.g. #C67B90)`);
-      else {
-        const upper = hexCode.trim().toUpperCase();
-        if (seenHex.has(upper)) errors.push(`colors[${idx}].hexCode "${hexCode}" is duplicate within product`);
-        else seenHex.add(upper);
-      }
+      if (seenIds.has(n)) errors.push(`colors[${idx}] ID ${n} is duplicate within product`);
+      else seenIds.add(n);
     });
-    if (body.colors.length > 20) errors.push("colors must contain at most 20 items");
   }
 
   // sizes required
@@ -199,11 +174,7 @@ function validateProductPayload(body: any) {
   normalized.isActive = body.isActive !== undefined ? Boolean(body.isActive === "true" ? true : body.isActive === "false" ? false : body.isActive) : true;
   normalized.mainImageUrl = body.mainImageUrl ?? null;
 
-  normalized.colors = body.colors.map((c: any) => ({
-    nameEn: String(c.nameEn ?? c.name_en ?? c.color).trim(),
-    nameAr: String(c.nameAr ?? c.name_ar).trim(),
-    hexCode: String(c.hexCode ?? c.hex_code ?? c.hex).trim().toUpperCase(),
-  }));
+  normalized.colors = body.colors.map((c: any) => Number(c)); // array of ProductColor IDs
 
   normalized.sizes = body.sizes.map((s: any) => {
     if (typeof s === "string") return { size: s, isAvailable: true };
@@ -265,15 +236,42 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
 
     const savedProduct = await productRepo.save(product);
 
-    // colors
-    const colorEntities = data.colors.map((c: any) =>
-      colorRepo.create({
+    // colors — resolve by IDs (no DB change): fetch palette rows and clone for new product
+    const colorIds: number[] = data.colors as number[];
+    const paletteColors = await colorRepo.find({ where: { id: In(colorIds) } });
+    if (paletteColors.length !== colorIds.length) {
+      const foundIds = new Set(paletteColors.map((pc) => pc.id));
+      const missing = colorIds.filter((id) => !foundIds.has(id));
+      throw AppError.badRequest(`colors contains non-existent ProductColor IDs: [${missing.join(", ")}]`);
+    }
+    // validate uniqueness of nameEn/nameAr/hexCode among selected palette (pre-empt DB unique violation per product)
+    {
+      const seenEn = new Set<string>();
+      const seenAr = new Set<string>();
+      const seenHex = new Set<string>();
+      for (const pc of paletteColors) {
+        const lowerEn = pc.nameEn.trim().toLowerCase();
+        const keyAr = pc.nameAr.trim();
+        const upperHex = pc.hexCode.trim().toUpperCase();
+        if (seenEn.has(lowerEn)) throw AppError.badRequest(`Duplicate nameEn "${pc.nameEn}" among selected color IDs`);
+        if (seenAr.has(keyAr)) throw AppError.badRequest(`Duplicate nameAr "${pc.nameAr}" among selected color IDs`);
+        if (seenHex.has(upperHex)) throw AppError.badRequest(`Duplicate hexCode "${pc.hexCode}" among selected color IDs`);
+        seenEn.add(lowerEn);
+        seenAr.add(keyAr);
+        seenHex.add(upperHex);
+      }
+    }
+    // preserve input order
+    const paletteMap = new Map<number, ProductColor>(paletteColors.map((pc) => [pc.id, pc]));
+    const colorEntities = colorIds.map((id) => {
+      const src = paletteMap.get(id)!;
+      return colorRepo.create({
         productId: savedProduct.id,
-        nameEn: c.nameEn,
-        nameAr: c.nameAr,
-        hexCode: c.hexCode,
-      })
-    );
+        nameEn: src.nameEn,
+        nameAr: src.nameAr,
+        hexCode: src.hexCode,
+      });
+    });
     await colorRepo.save(colorEntities);
 
     // sizes
