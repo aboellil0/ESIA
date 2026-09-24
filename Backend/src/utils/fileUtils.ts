@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 
 /**
- * Mirrors Al Rouba's fileUtils.deleteFile — best scenario:
+ * Delete file utility — best practice:
  * - skip external URLs (http/https)
  * - resolve /uploads/... to filesystem path safely
  * - unlink if exists, swallow errors

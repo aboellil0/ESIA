@@ -11,7 +11,7 @@ const PORT = Number(process.env.PORT) || 5000;
   try {
     await AppDataSource.initialize();
     console.log("DataSource initialized (PostgreSQL + TypeORM)");
-    // Run pending migrations automatically on startup (like Al Rouba seed pattern)
+    // Run pending migrations automatically on startup
     const pending = await AppDataSource.runMigrations();
     if (pending.length) console.log(`Ran ${pending.length} migrations:`, pending.map(m=>m.name).join(", "));
     else console.log("No pending migrations");

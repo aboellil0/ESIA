@@ -13,13 +13,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Vite env - no NextAuth, use VITE_ prefix (like NEXT_PUBLIC_ in Al Rouba)
+# Vite env - no NextAuth, use VITE_ prefix 
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
 
-# Production - serve static with node (like Next standalone in Al Rouba, but Vite uses serve)
+# Production - serve static with node 
 FROM base AS runner
 WORKDIR /app
 

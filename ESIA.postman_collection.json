@@ -177,7 +177,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"01012345678\"\n}\n// Password policy (auth.service.ts): min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special (!@#$%^&*), no spaces\n// Weak examples that will 400: \"password\", \"password123\", \"Password123\", \"password123!\""
+              "raw": "{\n \"name\": \"Test User\",\n \"email\": \"test@example.com\",\n \"password\": \"Password123!\",\n \"phone\": \"01012345678\"\n}\n// Password policy (auth.service.ts): min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special (!@#$%^&*), no spaces\n// Weak examples that will 400: \"password\", \"password123\", \"Password123\", \"password123!\""
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/register",
@@ -220,7 +220,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123!\"\n}\n\n// Unified login - works for both User and Admin (auth.service.ts:39 checks Admin then User)\n// Use any of: email | identifier | username\n// Examples:\n// Admin: { \"email\": \"admin@esia.local\", \"password\": \"Admin123!\" }\n// User:  { \"email\": \"test@example.com\", \"password\": \"Password123!\" }\n// { \"identifier\": \"test@example.com\", \"password\": \"...\" }"
+              "raw": "{\n \"email\": \"test@example.com\",\n \"password\": \"Password123!\"\n}\n\n// Unified login - works for both User and Admin (auth.service.ts:39 checks Admin then User)\n// Use any of: email | identifier | username\n// Examples:\n// Admin: { \"email\": \"admin@esia.local\", \"password\": \"Admin123!\" }\n// User: { \"email\": \"test@example.com\", \"password\": \"Password123!\" }\n// { \"identifier\": \"test@example.com\", \"password\": \"...\" }"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
@@ -263,7 +263,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+              "raw": "{\n \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/refresh",
@@ -292,7 +292,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+              "raw": "{\n \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/logout",
@@ -396,7 +396,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Shoes\",\n  \"slug\": \"shoes\"\n}\n// name required 2-100 chars, trimmed\n// slug optional 2-120 chars; if omitted auto-generated from name via slugify() (e.g. \"Evening Dresses\" -> \"evening-dresses\")\n// slug may contain letters (including Arabic), numbers, hyphens only\n// Examples:\n// { \"name\": \"Shoes\" }\n// { \"name\": \"Evening Dresses\", \"slug\": \"evening-dresses\" }\n// { \"name\": \"أحذية\" } -> slug auto \"أحذية\""
+              "raw": "{\n \"name\": \"Shoes\",\n \"slug\": \"shoes\"\n}\n// name required 2-100 chars, trimmed\n// slug optional 2-120 chars; if omitted auto-generated from name via slugify() (e.g. \"Evening Dresses\" -> \"evening-dresses\")\n// slug may contain letters (including Arabic), numbers, hyphens only\n// Examples:\n// { \"name\": \"Shoes\" }\n// { \"name\": \"Evening Dresses\", \"slug\": \"evening-dresses\" }\n// { \"name\": \"أحذية\" } -> slug auto \"أحذية\""
             },
             "url": {
               "raw": "{{baseUrl}}/api/categories",
@@ -428,7 +428,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Evening Dresses\",\n  \"slug\": \"evening-dresses\"\n}\n// At least one of name or slug required\n// If only name provided, slug auto-regenerates from new name\n// If slug provided explicitly, it is normalized via slugify()\n// Examples:\n// { \"name\": \"Updated Name\" }\n// { \"slug\": \"custom-slug\" }\n// { \"name\": \"New Name\", \"slug\": \"custom-slug\" }"
+              "raw": "{\n \"name\": \"Evening Dresses\",\n \"slug\": \"evening-dresses\"\n}\n// At least one of name or slug required\n// If only name provided, slug auto-regenerates from new name\n// If slug provided explicitly, it is normalized via slugify()\n// Examples:\n// { \"name\": \"Updated Name\" }\n// { \"slug\": \"custom-slug\" }\n// { \"name\": \"New Name\", \"slug\": \"custom-slug\" }"
             },
             "url": {
               "raw": "{{baseUrl}}/api/categories/1",
@@ -474,7 +474,7 @@
     },
     {
       "name": "05 - Products (/api/products)",
-      "description": "Product CRUD — Al Rouba best scenarios mirrored. Public reads (GET), admin writes (POST + media management). Routes: Backend/src/routes/product.routes.ts:12, Controller: Backend/src/controllers/product.controller.ts (colors by ID, cloned via In(); images via multer+sharp). Mounted at /api/products and /api/v1/products via routes/index.ts. ProductColor 3-field split: nameEn/nameAr/hexCode each unique per product (ProductColor.ts:5). Images: multer diskStorage safe-ext, 3MB limit, sharp 80 quality, /uploads/products/images, main is order 0 via sortOrder + mainImageUrl. Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin.\n\nAl Rouba refs: Website/backend/src/middleware/upload.middleware.ts (safe mimeToExt), Website/backend/src/middleware/media.middleware.ts (processMedia), Website/backend/src/services/media.service.ts (sharp), Website/backend/src/utils/fileUtils.ts (deleteFile), Website/backend/src/services/product.service.ts (media add/reorder/remove), Website/backend/src/models/Product.ts (media[] order as main).",
+      "description": "Product CRUD — Public reads (GET), admin writes (POST + media management). Routes: Backend/src/routes/product.routes.ts:12, Controller: Backend/src/controllers/product.controller.ts (colors by ID, cloned via In(); images via multer+sharp). Mounted at /api/products and /api/v1/products via routes/index.ts. ProductColor 3-field split: nameEn/nameAr/hexCode each unique per product (ProductColor.ts:5). Images: multer diskStorage safe-ext, 3MB limit, sharp 80 quality, /uploads/products/images, main is order 0 via sortOrder + mainImageUrl. Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin.",
       "item": [
         {
           "name": "GET /api/products - List all",
@@ -498,7 +498,7 @@
                 }
               ]
             },
-            "description": "Public. product.controller.ts:getAllProducts — LIST view (card outside). Returns ONLY main image + basics for grid (like Al Rouba public list shows first 3). Supports category filter: ?categoryId=1 (int) or ?categorySlug=dresses or ?category=dresses|1 or ?slug=dresses. Query params: categoryId, categorySlug, category, slug. If category not found → [] 200. Images in list are filtered to only isMain=true (single) for lightweight payload; mainImageUrl also provided for quick card. For full details with all images, use GET /api/products/:id (details).\n\nResponse shape for list (basic): [{ id, name, categoryId, category:{id,name,slug}, price, oldPrice, tag, isActive, mainImageUrl, mainImage:{id,imageUrl,sortOrder,isMain}, images:[mainImage], colors:[{id,nameEn,nameAr,hexCode}], createdAt }]\n\nExamples: GET /api/products, GET /api/products?categoryId=1, GET /api/products?categorySlug=dresses, GET /api/products?category=bags\nAlso available as /api/v1/products."
+            "description": "Public. product.controller.ts:getAllProducts — LIST view (card outside). Returns ONLY main image + basics for grid . Supports category filter: ?categoryId=1 (int) or ?categorySlug=dresses or ?category=dresses|1 or ?slug=dresses. Query params: categoryId, categorySlug, category, slug. If category not found → [] 200. Images in list are filtered to only isMain=true (single) for lightweight payload; mainImageUrl also provided for quick card. For full details with all images, use GET /api/products/:id (details).\n\nResponse shape for list (basic): [{ id, name, categoryId, category:{id,name,slug}, price, oldPrice, tag, isActive, mainImageUrl, mainImage:{id,imageUrl,sortOrder,isMain}, images:[mainImage], colors:[{id,nameEn,nameAr,hexCode}], createdAt }]\n\nExamples: GET /api/products, GET /api/products?categoryId=1, GET /api/products?categorySlug=dresses, GET /api/products?category=bags\nAlso available as /api/v1/products."
           },
           "response": []
         },
@@ -523,7 +523,7 @@
           "response": []
         },
         {
-          "name": "POST /api/products - Create (Admin) - Multipart (Al Rouba: multer + sharp compress + 3MB limit)",
+          "name": "POST /api/products - Create (Admin) - Multipart (: multer + sharp compress + 3MB limit)",
           "request": {
             "method": "POST",
             "header": [
@@ -593,49 +593,49 @@
                   "key": "image[0]",
                   "value": "",
                   "type": "file",
-                  "description": "File for index 0 — fieldname MUST be image[0] (also supports images[0] or image[0].file). Al Rouba: safe mimeToExt, diskStorage uploads/products/images/<unique>.jpg, 3MB limit, sharp compress jpeg80/png6/webp80."
+                  "description": "FILE — local/storage upload (multer diskStorage -> uploads/products/images/<unique>.jpg, 3MB limit, sharp compressed). If sent together with image[0].url for SAME index, FILE wins and url is ignored (as requested)."
                 },
                 {
                   "key": "image[0].isMain",
                   "value": "true",
                   "type": "text",
-                  "description": "Bool — true makes this image the main for card outside (is_main=true). Only one per product (partial unique index)."
+                  "description": "Bool — true makes this image the main for card outside (is_main=true, partial unique). Only one true per product; if BOTH file and url for same index, isMain still applies to that single image (file wins)."
                 },
                 {
                   "key": "image[0].url",
                   "value": "",
                   "type": "text",
-                  "description": "Optional external URL for index 0 if not uploading file — if file provided, file takes precedence. Leave empty when using file."
+                  "description": "URL — online image (https://...), saved as-is in DB (e.g. https://cdn.com/img.jpg, deleteFile skips http). Only used if image[0] file NOT provided for same index. If BOTH file and url sent for same index 0, FILE is used and url is ignored."
                 },
                 {
                   "key": "image[1]",
                   "value": "",
                   "type": "file",
-                  "description": "File for index 1 — image[1]"
+                  "description": "FILE — local/storage upload for index 1. Same rule: if image[1].url also sent for same index, file wins."
                 },
                 {
                   "key": "image[1].isMain",
                   "value": "false",
                   "type": "text",
-                  "description": "Bool — false for non-main. Only one true allowed."
+                  "description": "Bool — true makes this image the main for card outside (is_main=true, partial unique). Only one true per product; if BOTH file and url for same index, isMain still applies to that single image (file wins)."
                 },
                 {
                   "key": "image[1].url",
                   "value": "https://example.com/external.jpg",
                   "type": "text",
-                  "description": "Example external URL alternative to file — will be stored as-is (deleteFile skips http)."
+                  "description": "URL — online image for index 1. Example external URL alternative to file — will be stored as-is (deleteFile skips http). Ignored if image[1] file also sent for same index."
                 },
                 {
                   "key": "image[2].url",
                   "value": "/uploads/custom.jpg",
                   "type": "text",
-                  "description": "Example URL-only image without file — stored as ProductImage with isMain false."
+                  "description": "URL — online-only example without file (e.g. /uploads/custom.jpg or https://...). Stored as ProductImage with isMain false. Demonstrates url-only usage."
                 },
                 {
                   "key": "image[2].isMain",
                   "value": "false",
                   "type": "text",
-                  "description": "Bool — false for non-main. Only one true allowed per product."
+                  "description": "Bool — true makes this image the main for card outside (is_main=true, partial unique). Only one true per product; if BOTH file and url for same index, isMain still applies to that single image (file wins)."
                 }
               ]
             },
@@ -649,12 +649,12 @@
                 "products"
               ]
             },
-            "description": "Admin only — Al Rouba best + frontend-easy indexed images (image[0] pattern) — isMain bool is the ONLY main selector (no mainImageIndex).\n\nFlow (multer + sharp + isMain for card):\n1) Multer diskStorage safe mimeToExt → uploads/products/images/<Date.now>-<rand>.jpg, fileFilter jpg/png/webp/gif, limits 30MB, fieldname image[0] / image[0].file / images[0] all accepted (upload.middleware.ts:21).\n2) processMedia validates image ≤3MB else 400 + deletes batch, sharp compresses parallel (jpeg80/png6/webp80) via temp file (media.middleware.ts:11, media.service.ts:11).\n3) Controller parseIndexedImages(req.body, files) builds map image[0] -> {file, url, isMain, sortOrder}, merges file+url, sorts, normalizes sortOrder 0..n, determines main SOLELY by per-index isMain bool (exactly one true enforced, partial unique index UQ_product_images_main; if none true, first image becomes main; if multiple true → 400). Syncs products.main_image_url to isMain image for fast card lookup.\n4) Also supports legacy: fieldname images/files + body.images JSON (with isMain) — both work.\n5) Storage served via app.ts:83 /uploads static. Cleanup on rollback via fileUtils.deleteFile.\n\nIndexed example curl (frontend-easy):\n curl -X POST http://localhost:5000/api/products -H \"Authorization: Bearer $TOKEN\" \\\n  -F \"name=Puff Sleeve Dress\" -F \"categoryId=1\" -F \"price=1299\" -F \"colors=[1,2]\" -F \"sizes=[\\\"S\\\",\\\"M\\\"]\" \\\n  -F \"image[0]=@/path/img1.jpg\" -F \"image[0].isMain=true\" \\\n  -F \"image[1]=@/path/img2.jpg\" -F \"image[1].isMain=false\" \\\n  -F \"image[2].url=https://example.com/ext.jpg\" -F \"image[2].isMain=false\"\n\nList view (GET /api/products) returns only main image for card; details (GET /:id) returns all images with isMain flags."
+            "description": "Admin only — best + frontend-easy indexed images (image[0] pattern) — isMain bool is the ONLY main selector (no mainImageIndex).\n\nFlow (multer + sharp + isMain for card):\n1) Multer diskStorage safe mimeToExt → uploads/products/images/<Date.now>-<rand>.jpg, fileFilter jpg/png/webp/gif, limits 30MB, fieldname image[0] / image[0].file / images[0] all accepted (upload.middleware.ts:21).\n2) processMedia validates image ≤3MB else 400 + deletes batch, sharp compresses parallel (jpeg80/png6/webp80) via temp file (media.middleware.ts:11, media.service.ts:11).\n3) Controller parseIndexedImages(req.body, files) builds map image[0] -> {file, url, isMain, sortOrder}, merges file+url, sorts, normalizes sortOrder 0..n, determines main SOLELY by per-index isMain bool (exactly one true enforced, partial unique index UQ_product_images_main; if none true, first image becomes main; if multiple true → 400). Syncs products.main_image_url to isMain image for fast card lookup.\n4) Also supports legacy: fieldname images/files + body.images JSON (with isMain) — both work.\n5) Storage served via app.ts:83 /uploads static. Cleanup on rollback via fileUtils.deleteFile.\n\nIndexed example curl (frontend-easy):\n curl -X POST http://localhost:5000/api/products -H \"Authorization: Bearer $TOKEN\" \\\n -F \"name=Puff Sleeve Dress\" -F \"categoryId=1\" -F \"price=1299\" -F \"colors=[1,2]\" -F \"sizes=[\\\"S\\\",\\\"M\\\"]\" \\\n -F \"image[0]=@/path/img1.jpg\" -F \"image[0].isMain=true\" \\\n -F \"image[1]=@/path/img2.jpg\" -F \"image[1].isMain=false\" \\\n -F \"image[2].url=https://example.com/ext.jpg\" -F \"image[2].isMain=false\"\n\nList view (GET /api/products) returns only main image for card; details (GET /:id) returns all images with isMain flags."
           },
           "response": []
         },
         {
-          "name": "POST /api/products/:id/images - Add images (Admin) - Al Rouba addMedia",
+          "name": "POST /api/products/:id/images - Add images (Admin) - addMedia",
           "request": {
             "method": "POST",
             "header": [
@@ -670,19 +670,19 @@
                   "key": "image[0]",
                   "value": "",
                   "type": "file",
-                  "description": "Indexed file image[0] — preferred frontend-easy"
+                  "description": "FILE — local/storage upload image[0] (multer -> uploads/products/images, sharp). If image[0].url also sent for same index, FILE wins."
                 },
                 {
                   "key": "image[0].isMain",
                   "value": "true",
                   "type": "text",
-                  "description": "Make this new image the main for card (clears old main)"
+                  "description": "Bool — true makes this new image the main for card (clears old main via isMain)."
                 },
                 {
                   "key": "image[1]",
                   "value": "",
                   "type": "file",
-                  "description": "Second new image image[1]"
+                  "description": "FILE — second new image image[1]"
                 },
                 {
                   "key": "image[1].isMain",
@@ -693,7 +693,13 @@
                   "key": "image[2].url",
                   "value": "https://example.com/ext.jpg",
                   "type": "text",
-                  "description": "Optional url-only indexed"
+                  "description": "URL — online image for index 2 (no file), saved as-is. Ignored if image[2] file also sent."
+                },
+                {
+                  "key": "image[2].isMain",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Bool — false for non-main. If image[2] file also sent with url for same index, file wins but isMain still applies."
                 }
               ]
             },
@@ -709,12 +715,12 @@
                 "images"
               ]
             },
-            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:addProductImages — mirrors Al Rouba addMedia but with indexed support.\nAccepts indexed: image[0] file + image[0].isMain + image[0].url (frontend-easy) OR legacy images/files + body images array / imageUrl. Files validated 3MB, sharp compressed, appended with nextOrder = max(sortOrder)+1. If any new image has isMain=true, clears existing is_main via UPDATE ... WHERE is_main=true, sets new main, syncs mainImageUrl. If no isMain, keeps existing main. Example: POST /api/products/1/images -F \"image[0]=@new.jpg\" -F \"image[0].isMain=true\" . Returns updated product with sorted images (isMain flags).\nAlso available as POST /api/products/:id/media."
+            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:addProductImages — mirrors addMedia but with indexed support.\nAccepts indexed: image[0] file + image[0].isMain + image[0].url (frontend-easy) OR legacy images/files + body images array / imageUrl. Files validated 3MB, sharp compressed, appended with nextOrder = max(sortOrder)+1. If any new image has isMain=true, clears existing is_main via UPDATE ... WHERE is_main=true, sets new main, syncs mainImageUrl. If no isMain, keeps existing main. Example: POST /api/products/1/images -F \"image[0]=@new.jpg\" -F \"image[0].isMain=true\" . Returns updated product with sorted images (isMain flags).\nAlso available as POST /api/products/:id/media."
           },
           "response": []
         },
         {
-          "name": "DELETE /api/products/:id/images/:order - Remove image (Admin) - Al Rouba removeMedia",
+          "name": "DELETE /api/products/:id/images/:order - Remove image (Admin) - removeMedia",
           "request": {
             "method": "DELETE",
             "header": [
@@ -736,12 +742,12 @@
                 "0"
               ]
             },
-            "description": "Admin only. product.controller.ts:removeProductImage — mirrors Al Rouba DELETE /:id/media (removeMedia by order).\nParam :order is sortOrder (preferred) or image id — finds image where sortOrder==order or id==order. Physically deletes file via fileUtils.deleteFile (skips http), removes DB row, then re-normalizes remaining sortOrders to 0,1,2... like Al Rouba (map idx). If removed was mainImageUrl, updates main to new first image (order 0) else null.\nAlso supports DELETE /api/products/:id/media with body {order} or {imageId}.\n200 -> { success:true, data:{updated product}}\n404 if product or image not found."
+            "description": "Admin only. product.controller.ts:removeProductImage — mirrors DELETE /:id/media (removeMedia by order).\nParam :order is sortOrder (preferred) or image id — finds image where sortOrder==order or id==order. Physically deletes file via fileUtils.deleteFile (skips http), removes DB row, then re-normalizes remaining sortOrders to 0,1,2... like (map idx). If removed was mainImageUrl, updates main to new first image (order 0) else null.\nAlso supports DELETE /api/products/:id/media with body {order} or {imageId}.\n200 -> { success:true, data:{updated product}}\n404 if product or image not found."
           },
           "response": []
         },
         {
-          "name": "PUT /api/products/:id/images/reorder - Reorder (Admin) - Al Rouba reorderMedia",
+          "name": "PUT /api/products/:id/images/reorder - Reorder (Admin) - reorderMedia",
           "request": {
             "method": "PUT",
             "header": [
@@ -756,7 +762,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"currentOrder\": 2,\n  \"newOrder\": 0\n}\n// Moves image from order 2 to order 0 — shifts intervening items like Al Rouba reorderMedia.\n// After reorder, mainImageUrl auto-updated to new order 0 image."
+              "raw": "{\n \"currentOrder\": 2,\n \"newOrder\": 0\n}\n// Moves image from order 2 to order 0 — shifts intervening items like reorderMedia.\n// After reorder, mainImageUrl auto-updated to new order 0 image."
             },
             "url": {
               "raw": "{{baseUrl}}/api/products/1/images/reorder",
@@ -771,7 +777,7 @@
                 "reorder"
               ]
             },
-            "description": "Admin only. product.controller.ts:reorderProductImages — mirrors Al Rouba PUT /:id/media/reorder (product.service reorderMedia).\nBody: { currentOrder:number, newOrder:number }. Finds image by sortOrder==currentOrder, shifts others between old/new by ±1 (like Al Rouba shifting logic), sets item.order=newOrder, re-sorts, updates mainImageUrl to new first (order 0) if changed.\nAlso available as PUT /api/products/:id/media/reorder.\n200 -> { success:true, data:{images sorted}}\n400 if missing/invalid orders, 404 if product or image not found."
+            "description": "Admin only. product.controller.ts:reorderProductImages — mirrors PUT /:id/media/reorder (product.service reorderMedia).\nBody: { currentOrder:number, newOrder:number }. Finds image by sortOrder==currentOrder, shifts others between old/new by ±1 , sets item.order=newOrder, re-sorts, updates mainImageUrl to new first (order 0) if changed.\nAlso available as PUT /api/products/:id/media/reorder.\n200 -> { success:true, data:{images sorted}}\n400 if missing/invalid orders, 404 if product or image not found."
           },
           "response": []
         },
@@ -791,7 +797,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"imageId\": 5\n}\n// or { \"order\": 0 } or { \"sortOrder\": 1 }\n// Sets is_main=true for given image, clears others (partial unique), syncs mainImageUrl for card outside."
+              "raw": "{\n \"imageId\": 5\n}\n// or { \"order\": 0 } or { \"sortOrder\": 1 }\n// Sets is_main=true for given image, clears others (partial unique), syncs mainImageUrl for card outside."
             },
             "url": {
               "raw": "{{baseUrl}}/api/products/1/images/main",

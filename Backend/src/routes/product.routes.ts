@@ -14,26 +14,26 @@ import {
 
 const router = Router();
 
-// Public reads — list and detail (detail includes sorted images, main is order 0 like Al Rouba)
+// Public reads — list and detail (detail includes sorted images, main is isMain)
 router.get("/", getAllProducts);
 router.get("/:id", getProductById);
 
-// Admin writes — Al Rouba best: upload.any() + processMedia (compress, validate 3MB image) before controller
+// Admin writes — upload.any() + processMedia (compress, validate 3MB image) before controller
 // Accepts multipart/form-data files fieldname "images" / "files" and JSON body fields.
 // Also accepts pure JSON with images: [{imageUrl}] for backward compat.
 router.post("/", protect, adminOnly, upload.any(), processMedia, createProduct);
 
-// ─── Al Rouba media management — best scenarios for existing product ───
-// Add images to existing product (like Al Rouba POST /:id/media)
+// ─── Media management for existing product ───
+// Add images to existing product
 router.post("/:id/images", protect, adminOnly, upload.any(), processMedia, addProductImages);
-// Alternative alias: POST /:id/media for parity with Al Rouba
+// Alternative alias
 router.post("/:id/media", protect, adminOnly, upload.any(), processMedia, addProductImages);
 
-// Remove image by order or imageId (like Al Rouba DELETE /:id/media)
+// Remove image by order or imageId
 router.delete("/:id/images/:order", protect, adminOnly, removeProductImage);
 router.delete("/:id/media", protect, adminOnly, removeProductImage);
 
-// Reorder images: body { currentOrder, newOrder } — like Al Rouba PUT /:id/media/reorder
+// Reorder images: body { currentOrder, newOrder }
 router.put("/:id/images/reorder", protect, adminOnly, reorderProductImages);
 router.put("/:id/media/reorder", protect, adminOnly, reorderProductImages);
 

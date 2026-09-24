@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 
 /**
- * Best scenario from Al Rouba: sharp compression per extension.
+ * Sharp compression per extension (best practice):
  * - jpg/jpeg: quality 80
  * - png: compressionLevel 6
  * - webp: quality 80
@@ -43,7 +43,7 @@ export const MediaService = {
     }
   },
 
-  // Video compression kept for parity with Al Rouba but optional for ESIA (products only use images)
+  // Video compression (optional for ESIA products — currently only images)
   // If fluent-ffmpeg not installed, this will no-op.
   async compressVideo(filePath: string): Promise<void> {
     try {

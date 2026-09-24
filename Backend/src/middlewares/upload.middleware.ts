@@ -3,14 +3,13 @@ import path from "path";
 import fs from "fs";
 import { Request } from "express";
 
-// Best scenario from Al Rouba: never trust original extension — map verified MIME to safe extension.
+// Best practice: never trust original extension — map verified MIME to safe extension.
 const mimeToExt: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
-  // video support kept for parity with Al Rouba (used for product media videos)
   "video/mp4": "mp4",
   "video/mpeg": "mpeg",
   "video/quicktime": "mov",
@@ -20,7 +19,7 @@ const mimeToExt: Record<string, string> = {
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb) => {
-    // Determine entity dynamically like Al Rouba (req.baseUrl), but force "products" for ESIA product routes
+    // Determine entity dynamically from req.baseUrl, force "products" for product routes
     let entity = "misc";
     if (req.baseUrl) {
       if (req.baseUrl.includes("products")) entity = "products";
@@ -61,12 +60,12 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
 export const upload = multer({
   storage,
   limits: {
-    fileSize: 30 * 1024 * 1024, // 30 MB absolute max (mirrors Al Rouba)
+    fileSize: 30 * 1024 * 1024, // 30 MB absolute max
   },
   fileFilter,
 });
 
-// Helper to convert absolute path to URL path for DB (mirrors Al Rouba's toUrlPath)
+// Helper to convert absolute path to URL path for DB
 export const toUrlPath = (absolutePath: string): string => {
   const baseUpload = process.env.UPLOAD_DIR || "uploads";
   // normalize to forward slashes and extract /uploads/... part

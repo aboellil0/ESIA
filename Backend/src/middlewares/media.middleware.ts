@@ -3,7 +3,7 @@ import { MediaService } from "../services/media.service";
 import fs from "fs";
 
 /**
- * Mirrors Al Rouba's media.middleware.processMedia — best scenario:
+ * Media processing middleware — best practice:
  * - validates image ≤3MB, video ≤30MB *after* multer disk write but *before* controller
  * - deletes all files in batch if one exceeds limit (fail-fast cleanup)
  * - compresses images in parallel (sharp), videos sequentially (ffmpeg heavy)
@@ -30,7 +30,7 @@ export const processMedia = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const IMAGE_SIZE_LIMIT = 3 * 1024 * 1024; // 3 MB — Al Rouba standard
+    const IMAGE_SIZE_LIMIT = 3 * 1024 * 1024; // 3 MB
     const VIDEO_SIZE_LIMIT = 30 * 1024 * 1024; // 30 MB
 
     for (const file of filesToProcess) {
@@ -67,7 +67,7 @@ export const processMedia = async (req: Request, res: Response, next: NextFuncti
 
     next();
   } catch {
-    // Al Rouba: continue even if processing fails — better uncompressed than broken
+    // continue even if processing fails — better uncompressed than broken
     next();
   }
 };
