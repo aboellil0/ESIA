@@ -360,7 +360,7 @@
     },
     {
       "name": "05 - Products (/api/products)",
-      "description": "Product CRUD. Public reads (GET), admin write (POST by color IDs). Routes: Backend/src/routes/product.routes.ts:12, Controller: Backend/src/controllers/product.controller.ts (colors by ID, no DB change, cloned via In()). Mounted at /api/products and /api/v1/products via routes/index.ts. ProductColor 3-field split: nameEn/nameAr/hexCode each unique per product (ProductColor.ts:5). Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin.",
+      "description": "Product CRUD — Al Rouba best scenarios mirrored. Public reads (GET), admin writes (POST + media management). Routes: Backend/src/routes/product.routes.ts:12, Controller: Backend/src/controllers/product.controller.ts (colors by ID, cloned via In(); images via multer+sharp). Mounted at /api/products and /api/v1/products via routes/index.ts. ProductColor 3-field split: nameEn/nameAr/hexCode each unique per product (ProductColor.ts:5). Images: multer diskStorage safe-ext, 3MB limit, sharp 80 quality, /uploads/products/images, main is order 0 via sortOrder + mainImageUrl. Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin.\n\nAl Rouba refs: Website/backend/src/middleware/upload.middleware.ts (safe mimeToExt), Website/backend/src/middleware/media.middleware.ts (processMedia), Website/backend/src/services/media.service.ts (sharp), Website/backend/src/utils/fileUtils.ts (deleteFile), Website/backend/src/services/product.service.ts (media add/reorder/remove), Website/backend/src/models/Product.ts (media[] order as main).",
       "item": [
         {
           "name": "GET /api/products - List all",
@@ -391,7 +391,7 @@
           "response": []
         },
         {
-          "name": "POST /api/products - Create (Admin)",
+          "name": "POST /api/products - Create (Admin) - JSON (Al Rouba best: main is order 0)",
           "request": {
             "method": "POST",
             "header": [
@@ -400,14 +400,107 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Puff Sleeve Dress\",\n  \"categoryId\": 1,\n  \"price\": 1299,\n  \"oldPrice\": 1599,\n  \"tag\": \"new\",\n  \"defaultShape\": \"puff_sleeves\",\n  \"shortDescription\": \"Demo dress - puff sleeves default shape\",\n  \"isActive\": true,\n  \"mainImageUrl\": \"/uploads/demo.jpg\",\n  \"colors\": [1, 2],\n  \"sizes\": [\n    { \"size\": \"S\", \"isAvailable\": true },\n    { \"size\": \"M\", \"isAvailable\": true },\n    { \"size\": \"L\", \"isAvailable\": false }\n  ],\n  \"images\": [\n    { \"imageUrl\": \"/uploads/demo.jpg\", \"sortOrder\": 0 }\n  ]\n}\n// Required: name 2-200 chars, categoryId (or categorySlug) must exist, price number >=0, colors non-empty array of IDs, sizes non-empty array\n// Optional: oldPrice number, tag none|new|best_seller (default none), defaultShape puff_sleeves|layers|bow|long|abaya|circular, shortDescription <=5000, isActive boolean (default true), mainImageUrl string\n// colors: array of existing ProductColor IDs (e.g. [1,2]) — NO DB change. Endpoint clones palette rows for new product (product.controller.ts:80+). Fetch valid IDs via GET /api/products and inspect colors[*].id, or query product_colors table. Seeded IDs: 1=pink (#C67B90 وردي), 2=black (#000000 أسود) — see seed.ts\n// sizes[] each: size S|M|L|XL required, isAvailable boolean default true. Accepts also string shorthand: sizes: [\"S\",\"M\",\"L\"]\n// images[] optional: imageUrl required string, sortOrder integer default idx\n// Category: use categoryId (preferred) or categorySlug (e.g. \"dresses\" resolves via Category table)\n// Transactional: product + cloned colors + sizes + images created atomically via QueryRunner"
+              "raw": "{\n  \"name\": \"Puff Sleeve Dress\",\n  \"categoryId\": 1,\n  \"price\": 1299,\n  \"oldPrice\": 1599,\n  \"tag\": \"new\",\n  \"defaultShape\": \"puff_sleeves\",\n  \"shortDescription\": \"Demo dress - puff sleeves default shape\",\n  \"isActive\": true,\n  \"mainImageUrl\": \"/uploads/demo.jpg\",\n  \"colors\": [1, 2],\n  \"sizes\": [\n    { \"size\": \"S\", \"isAvailable\": true },\n    { \"size\": \"M\", \"isAvailable\": true },\n    { \"size\": \"L\", \"isAvailable\": false }\n  ],\n  \"images\": [\n    { \"imageUrl\": \"/uploads/demo.jpg\", \"sortOrder\": 0 }\n  ]\n}\n// JSON variant — best for testing logic without files. Al Rouba: media[].order as main (0 = main), normalized contiguous.\n// Required: name 2-200, categoryId|categorySlug, price, colors [IDs], sizes [S|M|L|XL]\n// Optional: oldPrice, tag none|new|best_seller, defaultShape, shortDescription, isActive, mainImageUrl (if omitted, auto-set to first image order 0 like Al Rouba), images [{imageUrl, sortOrder}]\n// colors: [1,2] palette IDs cloned via In() — no DB change — see product.controller.ts:80\n// For multipart file upload, use the next request (POST multipart). JSON + multipart both normalized to contiguous sortOrder."
             },
             "url": {
               "raw": "{{baseUrl}}/api/products",
               "host": ["{{baseUrl}}"],
               "path": ["api", "products"]
             },
-            "description": "Admin only (protect + adminOnly). product.controller.ts:createProduct (validateProductPayload:14, transaction:244) — colors by ID (no DB change)\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nBody: { name, categoryId|categorySlug, price, oldPrice?, tag?, defaultShape?, shortDescription?, isActive?, mainImageUrl?, colors: number[] (ProductColor IDs), sizes[], images? }\nExample colors: [1,2] where IDs are existing rows in product_colors (id, name_en, name_ar, hex_code). Endpoint fetches palette via In(colorIds), validates existence/uniqueness, then clones {nameEn,nameAr,hexCode} for new product (preserves product_colors uniqueness per product).\n201 -> { success:true, message:\"Product created successfully\", data:{id,name,categoryId,price,colors:[{id,productId,nameEn,nameAr,hexCode}], sizes, images, category}, statusCode:201 }\n400 if validation fails (empty colors, non-integer ID, duplicate IDs, non-existent ID, duplicate nameEn/nameAr/hexCode among selected IDs), 401 if no token, 403 if not admin, 404 if category not found, 409 if duplicate size per product."
+            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:createProduct — JSON variant\nRequires Bearer admin. Uses same validation as multipart variant. Images via imageUrl strings stored as ProductImage rows with sortOrder; mainImageUrl auto-set to first image (order 0) like Al Rouba's media[0].\n201 -> { success:true, data:{id, colors:[cloned], sizes, images, category}}\nAlso supports multipart: see next request for file upload best scenario (multer + sharp 80 + 3MB limit)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/products - Create (Admin) - Multipart (Al Rouba: multer + sharp compress + 3MB limit)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Puff Sleeve Dress", "type": "text" },
+                { "key": "categoryId", "value": "1", "type": "text" },
+                { "key": "price", "value": "1299", "type": "text" },
+                { "key": "oldPrice", "value": "1599", "type": "text" },
+                { "key": "tag", "value": "new", "type": "text" },
+                { "key": "defaultShape", "value": "puff_sleeves", "type": "text" },
+                { "key": "shortDescription", "value": "Demo dress - puff sleeves default shape", "type": "text" },
+                { "key": "isActive", "value": "true", "type": "text" },
+                { "key": "colors", "value": "[1,2]", "type": "text", "description": "JSON-stringified array of ProductColor IDs — Al Rouba formParsers pattern: tryParseJsonArray. Alternative: send as multiple fields or comma-separated." },
+                { "key": "sizes", "value": "[\"S\",\"M\",\"L\"]", "type": "text", "description": "JSON-stringified sizes array — also supports [{size:\"S\",isAvailable:true}]. Parsed via tryParseJsonArray like Al Rouba." },
+                { "key": "images", "value": "", "type": "file", "description": "Fieldname 'images' (also accepts 'files'/'image'/'media') — Al Rouba upload.middleware: safe mimeToExt, diskStorage to /uploads/products/images/<unique>.jpg, limits 30MB overall, media.middleware validates 3MB image limit then sharp compresses (jpeg 80/png 6/webp 80) before controller. Up to 20 files. Order preserved then normalized 0..n." },
+                { "key": "images", "value": "", "type": "file", "description": "Second image — order auto 1, main remains order 0." }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Admin only — Al Rouba best scenario: multer + sharp + main is order 0.\n\nFlow (mirrors Al Rouba Website/backend/src/middleware/upload.middleware.ts + media.middleware.ts + services/media.service.ts):\n1) Multer diskStorage: destination `uploads/products/images`, filename `<Date.now>-<rand>.jpg` via safe mimeToExt (never trust original ext — prevents polyglot), fileFilter allows jpg/png/webp/gif/pdf, limits 30MB (upload.middleware.ts:85).\n2) processMedia: validates each image ≤3MB (video ≤30MB) else deletes all batch files and returns 400; compresses images in parallel via sharp (jpeg 80, png compaction 6, webp 80) overwriting original with temp file (media.middleware.ts:38, media.service.ts:11). Failures swallowed → keep original.\n3) Controller: merges body images (imageUrl strings) + uploaded files (`/uploads/products/images/<filename>`) into `mergedImagesInput`, normalizes sortOrder contiguous 0..n (like Al Rouba product.service createProduct normaliseMedia orders), saves as ProductImage rows (product_images table: image_url, sort_order), auto-sets mainImageUrl to first image (order 0) if not supplied — same as Al Rouba where product.media[0] is main.\n4) Storage: files under `Backend/uploads/products/images/` served via `app.ts:83` express.static('/uploads').\n5) Cleanup: on transaction rollback, delete uploaded files via fileUtils.deleteFile (like Al Rouba deleteFile on removeMedia/deleteProduct).\n\nSupported Content-Type: multipart/form-data. Also still supports pure JSON (previous request). Example curl: curl -X POST -H \"Authorization: Bearer $TOKEN\" -F \"name=...\" -F \"categoryId=1\" -F \"price=1299\" -F \"colors=[1,2]\" -F \"sizes=[\\\"S\\\",\\\"M\\\"]\" -F \"images=@/path/img1.jpg\" -F \"images=@/path/img2.jpg\" http://localhost:5000/api/products"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/products/:id/images - Add images (Admin) - Al Rouba addMedia",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "images", "value": "", "type": "file", "description": "Fieldname images/files/media — multiple allowed. Files saved to /uploads/products/images, compressed via sharp, appended with nextOrder = max(sortOrder)+1 like Al Rouba ProductService.addMedia (nextOrder)." },
+                { "key": "imageUrl", "value": "https://example.com/external.jpg", "type": "text", "description": "Optional external URL — also accepted via images array JSON. Stored as-is (deleteFile skips http)." }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/images",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "1", "images"]
+            },
+            "description": "Admin only (protect + adminOnly, upload.any() + processMedia). product.controller.ts:addProductImages — mirrors Al Rouba POST /:id/media (product.service addMedia).\nAccepts multipart files (images/files) + optional body images array / imageUrl. Files validated 3MB, sharp compressed. Appends to product with sortOrder = max(existing)+1+idx (like Al Rouba nextOrder). If product had no mainImageUrl, sets it to first image (order 0). Returns updated product with sorted images.\nAlso available as POST /api/products/:id/media (alias).\n200 -> { success:true, data:{id, images:[sorted], mainImageUrl}}\n400 if no files, 404 if product not found."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/products/:id/images/:order - Remove image (Admin) - Al Rouba removeMedia",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/images/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "1", "images", "0"]
+            },
+            "description": "Admin only. product.controller.ts:removeProductImage — mirrors Al Rouba DELETE /:id/media (removeMedia by order).\nParam :order is sortOrder (preferred) or image id — finds image where sortOrder==order or id==order. Physically deletes file via fileUtils.deleteFile (skips http), removes DB row, then re-normalizes remaining sortOrders to 0,1,2... like Al Rouba (map idx). If removed was mainImageUrl, updates main to new first image (order 0) else null.\nAlso supports DELETE /api/products/:id/media with body {order} or {imageId}.\n200 -> { success:true, data:{updated product}}\n404 if product or image not found."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/products/:id/images/reorder - Reorder (Admin) - Al Rouba reorderMedia",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentOrder\": 2,\n  \"newOrder\": 0\n}\n// Moves image from order 2 to order 0 — shifts intervening items like Al Rouba reorderMedia.\n// After reorder, mainImageUrl auto-updated to new order 0 image."
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/images/reorder",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "1", "images", "reorder"]
+            },
+            "description": "Admin only. product.controller.ts:reorderProductImages — mirrors Al Rouba PUT /:id/media/reorder (product.service reorderMedia).\nBody: { currentOrder:number, newOrder:number }. Finds image by sortOrder==currentOrder, shifts others between old/new by ±1 (like Al Rouba shifting logic), sets item.order=newOrder, re-sorts, updates mainImageUrl to new first (order 0) if changed.\nAlso available as PUT /api/products/:id/media/reorder.\n200 -> { success:true, data:{images sorted}}\n400 if missing/invalid orders, 404 if product or image not found."
           },
           "response": []
         }

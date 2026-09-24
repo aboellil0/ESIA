@@ -9,6 +9,35 @@ import { Category } from "../models/Category";
 import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import { asyncHandler } from "../utils/asyncHandler";
+import { deleteFile } from "../utils/fileUtils";
+
+// ─── Al Rouba helpers: parse JSON-stringified arrays when coming via multipart/form-data ───
+function tryParseJsonArray(val: any): any[] | null {
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    // JSON array string: "[1,2]" or '[{"size":"M"}]'
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+        return [parsed];
+      } catch {
+        // fallback: try single-quoted JSON
+        try {
+          const parsed = JSON.parse(trimmed.replace(/'/g, '"'));
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
+      }
+    }
+    // comma-separated: "1,2,3" or "S,M,L"
+    if (trimmed.includes(",")) return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+    // single primitive
+    return [trimmed];
+  }
+  return null;
+}
 
 function validateProductPayload(body: any) {
   const errors: string[] = [];
@@ -77,9 +106,12 @@ function validateProductPayload(body: any) {
   }
 
   // colors required — now array of existing ProductColor IDs (no DB change)
-  // User request: when adding a product, colors are provided as array of color IDs (e.g. [1,2])
+  // Supports both JSON array and multipart form-data JSON-stringified array (Al Rouba pattern: tryParse)
   // We keep product_colors table unchanged (id, product_id, name_en, name_ar, hex_code) and clone the
   // referenced palette rows for the new product inside the transaction.
+  let colorsRaw: any = body.colors;
+  const parsedColors = tryParseJsonArray(colorsRaw);
+  if (parsedColors !== null) body.colors = parsedColors;
   if (!Array.isArray(body.colors) || body.colors.length === 0) {
     errors.push("colors is required and must be a non-empty array of existing ProductColor IDs (e.g. [1,2])");
   } else {
@@ -96,7 +128,11 @@ function validateProductPayload(body: any) {
     });
   }
 
-  // sizes required
+  // sizes required — also handle stringified JSON from multipart
+  {
+    const parsedSizes = tryParseJsonArray(body.sizes as any);
+    if (parsedSizes !== null) body.sizes = parsedSizes;
+  }
   if (!Array.isArray(body.sizes) || body.sizes.length === 0) {
     errors.push("sizes is required and must be a non-empty array of { size, isAvailable } or size strings (S,M,L,XL)");
   } else {
@@ -131,8 +167,19 @@ function validateProductPayload(body: any) {
     if (body.sizes.length > 10) errors.push("sizes must contain at most 10 items");
   }
 
-  // images optional
-  if (body.images !== undefined && body.images !== null) {
+  // images optional — also handles multipart JSON string (Al Rouba: safeParse) and allows empty when files are uploaded
+  {
+    if (typeof body.images === "string") {
+      const trimmed = body.images.trim();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          body.images = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {}
+      }
+    }
+  }
+  if (body.images !== undefined && body.images !== null && body.images !== "") {
     if (!Array.isArray(body.images)) errors.push("images must be an array of { imageUrl, sortOrder }");
     else {
       body.images.forEach((img: any, idx: number) => {
@@ -195,7 +242,44 @@ function validateProductPayload(body: any) {
 }
 
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
+  // ─── Al Roubabest: collect uploaded files (multer) — if multipart, body fields are strings, tryParse already handled ───
+  const uploadedFiles: Express.Multer.File[] = (() => {
+    const out: Express.Multer.File[] = [];
+    if ((req as any).file) out.push((req as any).file as Express.Multer.File);
+    const rf: any = (req as any).files;
+    if (rf) {
+      if (Array.isArray(rf)) out.push(...rf);
+      else Object.values(rf).forEach((arr: any) => { if (Array.isArray(arr)) out.push(...(arr as Express.Multer.File[])); });
+    }
+    return out;
+  })();
+  const uploadedImagesFromFiles = uploadedFiles
+    .filter((f) => ["images", "files", "image", "media"].includes(f.fieldname) || f.fieldname.startsWith("images"))
+    .filter((f) => f.mimetype.startsWith("image/"))
+    .map((file, idx) => ({
+      // Al Rouba: url = `/uploads/products/images/${filename}` — consistent with upload.middleware destination
+      imageUrl: `/uploads/products/images/${file.filename}`,
+      sortOrder: idx, // will be re-normalized after merge
+    }));
+
   const data = validateProductPayload(req.body);
+
+  // Merge body images (JSON URLs) + uploaded files (Al Rouba: mediaFromFiles) — normalize contiguous order like Al Rouba does
+  const mergedImagesInput: { imageUrl: string; sortOrder: number }[] = (() => {
+    const fromBody: { imageUrl: string; sortOrder: number }[] = data.images || [];
+    const fromFiles: typeof fromBody = uploadedImagesFromFiles.map((fi, idx) => ({
+      imageUrl: fi.imageUrl,
+      sortOrder: fromBody.length + idx,
+    }));
+    const combined = [...fromBody, ...fromFiles];
+    // Normalize to 0-based contiguous order (Al Rouba: sort then idx)
+    return combined
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((img, idx) => ({ imageUrl: img.imageUrl, sortOrder: idx }));
+  })();
+  // Override data.images with merged result for transaction
+  (data as any).images = mergedImagesInput;
+  (data as any)._uploadedFiles = uploadedFiles; // keep for error cleanup if needed
 
   // resolve category
   let categoryId = data.categoryId as number | undefined;
@@ -317,6 +401,14 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
     });
   } catch (err: any) {
     await queryRunner.rollbackTransaction();
+    // Al Rouba best: on failure, delete any uploaded files that were already written to disk
+    if (uploadedFiles.length > 0) {
+      for (const f of uploadedFiles) {
+        try { deleteFile(`/uploads/products/images/${f.filename}`); } catch {}
+        // also try by path
+        try { deleteFile(f.path); } catch {}
+      }
+    }
     // handle unique violations for colors (per productId + nameEn/nameAr/hexCode)
     if (err?.code === "23505") {
       const detail = err?.detail as string | undefined;
@@ -349,5 +441,178 @@ export const getProductById = asyncHandler(async (req: Request, res: Response) =
   const repo = AppDataSource.getRepository(Product);
   const product = await repo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
   if (!product) throw AppError.notFound("Product not found");
+  // Al Rouba best: sort images by order and expose hasImages flag, main is order 0
+  if (product.images) product.images.sort((a, b) => a.sortOrder - b.sortOrder);
   res.status(200).json({ success: true, message: "Operation completed successfully", data: product, statusCode: 200 });
+});
+
+// ─── Al Rouba best scenarios: media management after creation ───
+// Add images to existing product (like ProductService.addMedia)
+export const addProductImages = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw AppError.badRequest("Invalid product id");
+
+  const uploadedFiles: Express.Multer.File[] = (() => {
+    const out: Express.Multer.File[] = [];
+    if ((req as any).file) out.push((req as any).file as Express.Multer.File);
+    const rf: any = (req as any).files;
+    if (rf) {
+      if (Array.isArray(rf)) out.push(...rf);
+      else Object.values(rf).forEach((arr: any) => { if (Array.isArray(arr)) out.push(...(arr as Express.Multer.File[])); });
+    }
+    return out;
+  })();
+
+  const imageFiles = uploadedFiles.filter((f) => f.mimetype.startsWith("image/"));
+  // also allow body-provided URLs (external or already uploaded) via images array
+  let bodyImages: { imageUrl: string; sortOrder?: number }[] = [];
+  if (req.body.images) {
+    const parsed = tryParseJsonArray(req.body.images) ?? (Array.isArray(req.body.images) ? req.body.images : null);
+    if (parsed) {
+      bodyImages = parsed.map((img: any, idx: number) => {
+        if (typeof img === "string") return { imageUrl: img, sortOrder: idx };
+        return { imageUrl: String(img.imageUrl ?? img.image_url ?? img.url).trim(), sortOrder: img.sortOrder ?? idx };
+      });
+    } else if (Array.isArray(req.body.images)) {
+      bodyImages = req.body.images;
+    }
+  }
+  // also support single imageUrl field
+  if (req.body.imageUrl && typeof req.body.imageUrl === "string") {
+    bodyImages.push({ imageUrl: req.body.imageUrl.trim(), sortOrder: bodyImages.length });
+  }
+
+  const fileImages = imageFiles.map((file) => ({ imageUrl: `/uploads/products/images/${file.filename}`, sortOrder: 0 }));
+  const newImagesInput = [...bodyImages, ...fileImages];
+  if (newImagesInput.length === 0) throw AppError.badRequest("No image files or imageUrl provided");
+
+  const productRepo = AppDataSource.getRepository(Product);
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+
+  const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
+  if (!product) {
+    // cleanup uploaded files on failure
+    for (const f of imageFiles) deleteFile(`/uploads/products/images/${f.filename}`);
+    throw AppError.notFound("Product not found");
+  }
+
+  const nextOrder = product.images.length > 0 ? Math.max(...product.images.map((i) => i.sortOrder)) + 1 : 0;
+  const entities = newImagesInput.map((img, idx) =>
+    imageRepo.create({ productId: id, imageUrl: img.imageUrl, sortOrder: nextOrder + idx })
+  );
+  await imageRepo.save(entities);
+
+  // if product had no mainImageUrl, set it to first image (order 0)
+  if (!product.mainImageUrl) {
+    const first = [...product.images, ...entities].sort((a, b) => a.sortOrder - b.sortOrder)[0];
+    if (first) {
+      product.mainImageUrl = first.imageUrl;
+      await productRepo.save(product);
+    }
+  }
+
+  const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
+  if (updated?.images) updated.images.sort((a, b) => a.sortOrder - b.sortOrder);
+  res.status(200).json({ success: true, message: "Images added successfully", data: updated, statusCode: 200 });
+});
+
+// Remove image by its sort_order (or id) — mirrors Al Rouba removeMedia by order
+export const removeProductImage = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw AppError.badRequest("Invalid product id");
+  // allow order via params or body: DELETE /:id/images/:order  or body { order, imageId }
+  const rawOrder = (req.params as any).order ?? (req.params as any).imageId ?? req.body.order ?? req.body.sortOrder ?? req.body.imageId;
+  if (rawOrder === undefined || rawOrder === null) throw AppError.badRequest("order or imageId is required");
+  const parsedOrder = Number(rawOrder);
+  if (Number.isNaN(parsedOrder)) throw AppError.badRequest("order must be a number");
+
+  const productRepo = AppDataSource.getRepository(Product);
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+
+  const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
+  if (!product) throw AppError.notFound("Product not found");
+
+  // try find by sortOrder first, then by id
+  let target = product.images.find((img) => img.sortOrder === parsedOrder);
+  if (!target) target = product.images.find((img) => img.id === parsedOrder);
+  if (!target) throw AppError.notFound(`No image found with order/id ${parsedOrder}`);
+
+  deleteFile(target.imageUrl);
+  await imageRepo.remove(target);
+
+  // re-normalize remaining orders to 0,1,2... like Al Rouba
+  const remaining = (await imageRepo.find({ where: { productId: id }, order: { sortOrder: "ASC" } }));
+  for (let i = 0; i < remaining.length; i++) {
+    if (remaining[i].sortOrder !== i) {
+      remaining[i].sortOrder = i;
+      await imageRepo.save(remaining[i]);
+    }
+  }
+
+  // if removed image was mainImageUrl, update main to new first
+  if (product.mainImageUrl === target.imageUrl) {
+    const newFirst = remaining[0];
+    product.mainImageUrl = newFirst ? newFirst.imageUrl : null;
+    await productRepo.save(product);
+  }
+
+  const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
+  if (updated?.images) updated.images.sort((a, b) => a.sortOrder - b.sortOrder);
+  res.status(200).json({ success: true, message: "Image removed successfully", data: updated, statusCode: 200 });
+});
+
+// Reorder images — mirrors Al Rouba reorderMedia (currentOrder -> newOrder)
+export const reorderProductImages = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw AppError.badRequest("Invalid product id");
+  const { currentOrder, newOrder } = req.body;
+  if (currentOrder === undefined || newOrder === undefined) throw AppError.badRequest("currentOrder and newOrder are required");
+  const parsedCurrent = Number(currentOrder);
+  const parsedNew = Number(newOrder);
+  if (Number.isNaN(parsedCurrent) || Number.isNaN(parsedNew)) throw AppError.badRequest("currentOrder and newOrder must be numbers");
+
+  const productRepo = AppDataSource.getRepository(Product);
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+
+  const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
+  if (!product) throw AppError.notFound("Product not found");
+
+  const item = product.images.find((img) => img.sortOrder === parsedCurrent);
+  if (!item) throw AppError.notFound(`No image found with order ${parsedCurrent}`);
+  if (parsedNew === parsedCurrent) {
+    if (product.images) product.images.sort((a, b) => a.sortOrder - b.sortOrder);
+    res.status(200).json({ success: true, message: "Operation completed successfully", data: product, statusCode: 200 });
+    return;
+  }
+
+  // shift like Al Rouba
+  if (parsedNew > parsedCurrent) {
+    for (const img of product.images) {
+      if (img.sortOrder > parsedCurrent && img.sortOrder <= parsedNew) {
+        img.sortOrder -= 1;
+        await imageRepo.save(img);
+      }
+    }
+  } else {
+    for (const img of product.images) {
+      if (img.sortOrder >= parsedNew && img.sortOrder < parsedCurrent) {
+        img.sortOrder += 1;
+        await imageRepo.save(img);
+      }
+    }
+  }
+  item.sortOrder = parsedNew;
+  await imageRepo.save(item);
+
+  // if order 0 changed, update mainImageUrl to new first
+  const sorted = [...product.images].sort((a, b) => a.sortOrder - b.sortOrder);
+  const newMain = sorted[0];
+  if (newMain && product.mainImageUrl !== newMain.imageUrl) {
+    product.mainImageUrl = newMain.imageUrl;
+    await productRepo.save(product);
+  }
+
+  const updated = await productRepo.findOne({ where: { id }, relations: { colors: true, sizes: true, images: true, category: true } });
+  if (updated?.images) updated.images.sort((a, b) => a.sortOrder - b.sortOrder);
+  res.status(200).json({ success: true, message: "Images reordered successfully", data: updated, statusCode: 200 });
 });
