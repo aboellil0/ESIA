@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ESIA API",
-    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)",
+      "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-24 - Added Categories + Products\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "esia-api-2026-09-21"
   },
@@ -402,6 +402,61 @@
               "path": ["api", "categories", "1"]
             },
             "description": "Admin only (protect + adminOnly). category.controller.ts:deleteCategory\nRequires Bearer admin token. Deletes category by id; FK ON DELETE CASCADE will also delete its products (see migrations/1710000000000-Init.ts:30).\n200 -> { success:true, message:\"Category deleted successfully\", data:null, statusCode:200 }\n400 if invalid id, 404 if not found, 401/403 if not admin."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Products (/api/products)",
+      "description": "Product CRUD. Public reads (GET), admin write (POST). Routes: Backend/src/routes/product.routes.ts:12, Controller: Backend/src/controllers/product.controller.ts. Mounted at /api/products and /api/v1/products via routes/index.ts. ProductColor 3-field split: nameEn/nameAr/hexCode each unique per product (ProductColor.ts:5). Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin.",
+      "item": [
+        {
+          "name": "GET /api/products - List all",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Public. product.controller.ts:getAllProducts. Returns all products with relations colors/sizes/images/category ordered by id ASC.\n200 -> { success:true, data:[{id,name,categoryId,price,oldPrice,tag,defaultShape,shortDescription,isActive,mainImageUrl,createdAt, colors:[{id,nameEn,nameAr,hexCode}], sizes:[{id,size,isAvailable}], images:[{id,imageUrl,sortOrder}], category:{id,name,slug}}], statusCode:200 }\nAlso available as /api/v1/products"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/products/:id - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "1"]
+            },
+            "description": "Public. product.controller.ts:getProductById. Param id must be integer.\n200 -> { success:true, data:{id,name,colors,sizes,images,category}, statusCode:200 }\n400 if invalid id, 404 if not found.\nAlso available as /api/v1/products/:id"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/products - Create (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Puff Sleeve Dress\",\n  \"categoryId\": 1,\n  \"price\": 1299,\n  \"oldPrice\": 1599,\n  \"tag\": \"new\",\n  \"defaultShape\": \"puff_sleeves\",\n  \"shortDescription\": \"Demo dress - puff sleeves default shape\",\n  \"isActive\": true,\n  \"mainImageUrl\": \"/uploads/demo.jpg\",\n  \"colors\": [\n    { \"nameEn\": \"pink\", \"nameAr\": \"وردي\", \"hexCode\": \"#C67B90\" },\n    { \"nameEn\": \"black\", \"nameAr\": \"أسود\", \"hexCode\": \"#000000\" }\n  ],\n  \"sizes\": [\n    { \"size\": \"S\", \"isAvailable\": true },\n    { \"size\": \"M\", \"isAvailable\": true },\n    { \"size\": \"L\", \"isAvailable\": false }\n  ],\n  \"images\": [\n    { \"imageUrl\": \"/uploads/demo.jpg\", \"sortOrder\": 0 }\n  ]\n}\n// Required: name 2-200 chars, categoryId (or categorySlug) must exist, price number >=0, colors non-empty array, sizes non-empty array\n// Optional: oldPrice number, tag none|new|best_seller (default none), defaultShape puff_sleeves|layers|bow|long|abaya|circular, shortDescription <=5000, isActive boolean (default true), mainImageUrl string\n// colors[] each: nameEn 1-50 required, nameAr 1-50 required, hexCode /^#[0-9A-Fa-f]{6}$/ required. Each of nameEn/nameAr/hexCode unique per product (ProductColor.ts:5). Alternative aliases: color->nameEn, hex->hexCode supported\n// sizes[] each: size S|M|L|XL required, isAvailable boolean default true. Accepts also string shorthand: sizes: [\"S\",\"M\",\"L\"]\n// images[] optional: imageUrl required string, sortOrder integer default idx\n// Category: use categoryId (preferred) or categorySlug (e.g. \"dresses\" resolves via Category table)\n// Transactional: product + colors + sizes + images created atomically via QueryRunner"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Admin only (protect + adminOnly). product.controller.ts:createProduct (validateProductPayload:14, transaction:244)\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nBody: { name, categoryId|categorySlug, price, oldPrice?, tag?, defaultShape?, shortDescription?, isActive?, mainImageUrl?, colors[], sizes[], images? }\n201 -> { success:true, message:\"Product created successfully\", data:{id,name,categoryId,price,colors:[{id,productId,nameEn,nameAr,hexCode}], sizes, images, category}, statusCode:201 }\n400 if validation fails (missing fields, bad hex, duplicate colors/sizes within payload), 401 if no token, 403 if not admin, 404 if category not found, 409 if duplicate color nameEn/nameAr/hexCode or size per product (DB unique violation)."
           },
           "response": []
         }
