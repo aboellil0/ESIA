@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ESIA API",
-    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-24 - Added Categories + Products\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (Bearer required)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)",
+    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-25 - Added Orders (simplified flow)\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (/api/auth/me)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)\n- 06 Orders (/api/orders)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "esia-api-2026-09-21"
   },
@@ -813,6 +813,365 @@
               ]
             },
             "description": "Admin only (protect + adminOnly). product.controller.ts:setMainProductImage — sets isMain boolean for card display (outside show).\nBody: { imageId:number } or { order:number } or { sortOrder:number } — finds by id or sortOrder. Clears existing is_main via UPDATE ... WHERE product_id=:pid, sets target is_main=true, syncs products.main_image_url to target.imageUrl for fast card lookup.\nAlso available as PUT /api/products/:id/images/main and PATCH /api/products/:id/media/main.\n200 -> { success:true, data:{updated product with images sorted, isMain flags}, statusCode:200 }\n400 if missing/invalid, 404 if product/image not found."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Orders (/api/orders)",
+      "description": "Simplified order flow: Create order (guest or auth) → Submit payment proof → Admin verifies/rejects payment → Admin updates order status. All mounted at /api/orders and /api/v1/orders via order.routes.ts. Auth: user routes need Bearer {{accessToken}} with role=user, admin routes need role=admin. Payment status: NOT_SUBMITTED → SUBMITTED → VERIFIED/REJECTED. Order status: PENDING → PENDING_PAYMENT → ACCEPTED → SHIPPED → DELIVERED (or REJECTED/CANCELLED).",
+      "item": [
+        {
+          "name": "POST /api/orders - Create Order (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"سارة أحمد\",\n  \"email\": \"sara@example.com\",\n  \"phone\": \"01012345678\",\n  \"address\": \"123 شارع التحرير، القاهرة\",\n  \"city\": \"القاهرة\",\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"productName\": \"Rosalind Puff Dress\",\n      \"unitPrice\": 710,\n      \"colorNameEn\": \"وردي\",\n      \"colorHex\": \"#FFC0CB\",\n      \"size\": \"M\",\n      \"quantity\": 1\n    }\n  ],\n  \"totalAmount\": 760,\n  \"notes\": \"يرجى التوصيل صباحاً\"\n}\n// Required: customerName, email, phone, address, items[], totalAmount\n// items[]: productId, productName, unitPrice, colorNameEn/colorHex, size, quantity\n// Optional: city, notes\n// If authenticated (Bearer {{accessToken}} with user role), userId auto-attached\n// 201 -> { success:true, message:\"Order created successfully. Please proceed to payment.\", data:{ order:{ id, orderNumber, status, paymentStatus, totalAmount, createdAt } } }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Public (guest) or Authenticated. Creates order with PENDING status and NOT_SUBMITTED payment status. Returns orderNumber for payment submission. Also available as /api/v1/orders"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/orders/:orderNumber/payment - Submit Payment Proof (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"vodafone_cash\",\n  \"senderName\": \"سارة أحمد\",\n  \"senderAccount\": \"01012345678\",\n  \"senderNumber\": \"01012345678\",\n  \"proofImageUrl\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...\",\n  \"amount\": 760,\n  \"notes\": \"تم التحويل من فودافون كاش\"\n}\n// Required: paymentMethod, senderName, senderNumber, proofImageUrl, amount\n// paymentMethod: vodafone_cash | etisalat_cash | orange_money | bank_transfer | instapay | fawry | other\n// senderAccount: optional (wallet ID / bank account)\n// proofImageUrl: base64 data URI or uploaded image URL\n// amount: must match order totalAmount\n// 200 -> { success:true, message:\"Payment submitted successfully. Awaiting admin verification.\", data:{ order:{ id, orderNumber, status:PENDING_PAYMENT, paymentStatus:SUBMITTED, paymentMethod, senderName, senderNumber, proofImageUrl, paymentAmount, paymentSubmittedAt } } }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/ESIA-20260925-0042/payment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "ESIA-20260925-0042",
+                "payment"
+              ]
+            },
+            "description": "Public. Submits payment proof for an order. Updates order status to PENDING_PAYMENT and paymentStatus to SUBMITTED. Use orderNumber from create order response. Also available as /api/v1/orders/:orderNumber/payment"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/orders/track/:orderNumber - Track Order (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/track/ESIA-20260925-0042",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "track",
+                "ESIA-20260925-0042"
+              ]
+            },
+            "description": "Public. Returns full order details including items, payment info, status timeline. No auth required. Also available as /api/v1/orders/track/:orderNumber"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/orders/my-orders - My Orders (Authenticated User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/my-orders?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "my-orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "Filter: pending | pending_payment | accepted | rejected | shipped | delivered | cancelled"
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": "submitted",
+                  "description": "Filter: not_submitted | submitted | verified | rejected"
+                }
+              ]
+            },
+            "description": "User only (protect + userOnly). Paginated list of user's orders. Supports status & paymentStatus filters. Also available as /api/v1/orders/my-orders"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/orders/my-orders/:id - My Order Detail (Authenticated User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/my-orders/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "my-orders",
+                "1"
+              ]
+            },
+            "description": "User only. Returns single order with full details. Also available as /api/v1/orders/my-orders/:id"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/orders/my-orders/:id/cancel - Cancel My Order (Authenticated User)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/my-orders/1/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "my-orders",
+                "1",
+                "cancel"
+              ]
+            },
+            "description": "User only. Can cancel if order not DELIVERED or CANCELLED. Also available as /api/v1/orders/my-orders/:id/cancel"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/orders - List All Orders (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?page=1&limit=20&status=pending_payment&paymentStatus=submitted&search=ESIA",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "pending_payment",
+                  "description": "Filter: pending | pending_payment | accepted | rejected | shipped | delivered | cancelled"
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": "submitted",
+                  "description": "Filter: not_submitted | submitted | verified | rejected"
+                },
+                {
+                  "key": "search",
+                  "value": "ESIA",
+                  "description": "Search by orderNumber, customerName, email, phone"
+                }
+              ]
+            },
+            "description": "Admin only (protect + adminOnly). Paginated list with status, paymentStatus filters and search. Also available as /api/v1/orders"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/orders/:id - Get Order by ID (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1"
+              ]
+            },
+            "description": "Admin only. Returns single order with full details. Also available as /api/v1/orders/:id"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/orders/:id/status - Update Order Status (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\",\n  \"trackingNumber\": \"TRACK123456789\"\n}\n// status: pending | pending_payment | accepted | rejected | shipped | delivered | cancelled\n// trackingNumber: optional, required when status=shipped\n// Valid transitions enforced server-side\n// Also auto-updates paymentStatus: ACCEPTED → VERIFIED, REJECTED → REJECTED"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1",
+                "status"
+              ]
+            },
+            "description": "Admin only. Updates order status with validation. Valid transitions: PENDING→PENDING_PAYMENT/ACCEPTED/REJECTED/CANCELLED, PENDING_PAYMENT→ACCEPTED/REJECTED/CANCELLED, ACCEPTED→SHIPPED/CANCELLED/REJECTED, SHIPPED→DELIVERED/CANCELLED. Auto-sets reviewedBy/reviewedAt. Also available as /api/v1/orders/:id/status"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/orders/:id/verify-payment - Verify/Reject Payment (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"verify\",\n  \"rejectionReason\": \"\"\n}\n// action: verify | reject\n// rejectionReason: required when action=reject\n// On verify: paymentStatus→VERIFIED, order status→ACCEPTED\n// On reject: paymentStatus→REJECTED, order status→REJECTED"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1/verify-payment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1",
+                "verify-payment"
+              ]
+            },
+            "description": "Admin only. Verifies or rejects submitted payment. On verify: order status becomes ACCEPTED, paymentStatus VERIFIED. On reject: order status REJECTED, paymentStatus REJECTED with reason. Also available as /api/v1/orders/:id/verify-payment"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/orders/:id/notes - Update Order Notes (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"عميل VIP - أولوية في الشحن\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1",
+                "notes"
+              ]
+            },
+            "description": "Admin only. Updates internal admin notes on order. Also available as /api/v1/orders/:id/notes"
           },
           "response": []
         }
