@@ -10,6 +10,7 @@ import { mongoSanitize } from "./middlewares/sanitize.middleware";
 import { globalErrorHandler, notFoundHandler } from "./middlewares/error.middleware";
 import router from "./routes";
 import authRoutes from "./routes/auth.routes";
+import orderRoutes from "./routes/order.routes";
 
 const app = express();
 // Required when behind nginx/docker (express-rate-limit checks X-Forwarded-For)
@@ -76,6 +77,9 @@ app.get("/api/v1/health", (_req, res) => {
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/v1/auth", authLimiter, authRoutes);
+
+app.use("/api/orders", orderRoutes);
+app.use("/api/v1/orders", orderRoutes);
 
 app.use("/api", router);
 app.use("/api/v1", router);

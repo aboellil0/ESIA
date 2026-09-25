@@ -22,6 +22,7 @@ export enum ProductSize {
 
 export enum OrderStatus {
   PENDING = "pending",
+  PENDING_PAYMENT = "pending_payment",
   ACCEPTED = "accepted",
   REJECTED = "rejected",
   SHIPPED = "shipped",
@@ -31,4 +32,21 @@ export enum OrderStatus {
 export enum UserRole {
   USER = "user",
   ADMIN = "admin",
+}
+
+export enum PaymentMethod {
+  VODAFONE_CASH = "vodafone_cash",
+  ETISALAT_CASH = "etisalat_cash",
+  ORANGE_MONEY = "orange_money",
+  BANK_TRANSFER = "bank_transfer",
+  INSTAPAY = "instapay",
+  FAWRY = "fawry",
+  OTHER = "other",
+}
+
+export enum PaymentStatus {
+  NOT_SUBMITTED = "not_submitted",
+  SUBMITTED = "submitted",
+  VERIFIED = "verified",
+  REJECTED = "rejected",
 }

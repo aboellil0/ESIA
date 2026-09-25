@@ -1,4 +1,4 @@
-export { ProductTag, DefaultShape, ProductSize, OrderStatus } from "./enums";
+export { ProductTag, DefaultShape, ProductSize, OrderStatus, PaymentMethod, PaymentStatus } from "./enums";
 export { Category } from "./Category";
 export { Product } from "./Product";
 export { ProductImage } from "./ProductImage";
