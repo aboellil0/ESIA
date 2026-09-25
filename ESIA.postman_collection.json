@@ -820,10 +820,10 @@
     },
     {
       "name": "06 - Orders (/api/orders)",
-      "description": "Simplified order flow: Create order (guest or auth) → Submit payment proof → Admin verifies/rejects payment → Admin updates order status. All mounted at /api/orders and /api/v1/orders via order.routes.ts. Auth: user routes need Bearer {{accessToken}} with role=user, admin routes need role=admin. Payment status: NOT_SUBMITTED → SUBMITTED → VERIFIED/REJECTED. Order status: PENDING → PENDING_PAYMENT → ACCEPTED → SHIPPED → DELIVERED (or REJECTED/CANCELLED).",
+      "description": "Simplified order flow: Create order with optional payment (guest or auth) → Admin verifies/rejects payment → Admin updates order status. All mounted at /api/orders and /api/v1/orders via order.routes.ts. Auth: user routes need Bearer {{accessToken}} with role=user, admin routes need role=admin. Payment status: NOT_SUBMITTED → SUBMITTED → VERIFIED/REJECTED. Order status: PENDING → PENDING_PAYMENT → ACCEPTED → SHIPPED → DELIVERED (or REJECTED/CANCELLED).",
       "item": [
         {
-          "name": "POST /api/orders - Create Order (Public)",
+          "name": "POST /api/orders - Create Order (Public) - With optional payment",
           "request": {
             "method": "POST",
             "header": [
@@ -834,7 +834,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerName\": \"سارة أحمد\",\n  \"email\": \"sara@example.com\",\n  \"phone\": \"01012345678\",\n  \"address\": \"123 شارع التحرير، القاهرة\",\n  \"city\": \"القاهرة\",\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"productName\": \"Rosalind Puff Dress\",\n      \"unitPrice\": 710,\n      \"colorNameEn\": \"وردي\",\n      \"colorHex\": \"#FFC0CB\",\n      \"size\": \"M\",\n      \"quantity\": 1\n    }\n  ],\n  \"totalAmount\": 760,\n  \"notes\": \"يرجى التوصيل صباحاً\"\n}\n// Required: customerName, email, phone, address, items[], totalAmount\n// items[]: productId, productName, unitPrice, colorNameEn/colorHex, size, quantity\n// Optional: city, notes\n// If authenticated (Bearer {{accessToken}} with user role), userId auto-attached\n// 201 -> { success:true, message:\"Order created successfully. Please proceed to payment.\", data:{ order:{ id, orderNumber, status, paymentStatus, totalAmount, createdAt } } }"
+              "raw": "{\n  \"customerName\": \"سارة أحمد\",\n  \"email\": \"sara@example.com\",\n  \"phone\": \"01012345678\",\n  \"address\": \"123 شارع التحرير، القاهرة\",\n  \"city\": \"القاهرة\",\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"productName\": \"Rosalind Puff Dress\",\n      \"unitPrice\": 710,\n      \"colorNameEn\": \"وردي\",\n      \"colorHex\": \"#FFC0CB\",\n      \"size\": \"M\",\n      \"quantity\": 1\n    }\n  ],\n  \"totalAmount\": 760,\n  \"notes\": \"يرجى التوصيل صباحاً\",\n  \"paymentMethod\": \"vodafone_cash\",\n  \"senderName\": \"سارة أحمد\",\n  \"senderAccount\": \"01012345678\",\n  \"senderNumber\": \"01012345678\",\n  \"proofImageUrl\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...\",\n  \"paymentAmount\": 760,\n  \"paymentNotes\": \"تم التحويل من فودافون كاش\"\n}\n// Required: customerName, email, phone, address, items[], totalAmount\n// items[]: productId, productName, unitPrice, colorNameEn/colorHex, size, quantity\n// Optional: city, notes\n// Optional payment fields (if provided, all required): paymentMethod, senderName, senderNumber, proofImageUrl, paymentAmount\n// paymentMethod: vodafone_cash | etisalat_cash | orange_money | bank_transfer | instapay | fawry | other\n// senderAccount: optional (wallet ID / bank account)\n// proofImageUrl: base64 data URI or uploaded image URL\n// paymentAmount: must match order totalAmount\n// paymentNotes: optional\n// If authenticated (Bearer {{accessToken}} with user role), userId auto-attached\n// 201 -> { success:true, message:\"Order created with payment submitted successfully. Awaiting admin verification.\", data:{ order:{ id, orderNumber, status:PENDING_PAYMENT, paymentStatus:SUBMITTED, totalAmount, createdAt } } }"
             },
             "url": {
               "raw": "{{baseUrl}}/api/orders",
@@ -846,37 +846,7 @@
                 "orders"
               ]
             },
-            "description": "Public (guest) or Authenticated. Creates order with PENDING status and NOT_SUBMITTED payment status. Returns orderNumber for payment submission. Also available as /api/v1/orders"
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/orders/:orderNumber/payment - Submit Payment Proof (Public)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"paymentMethod\": \"vodafone_cash\",\n  \"senderName\": \"سارة أحمد\",\n  \"senderAccount\": \"01012345678\",\n  \"senderNumber\": \"01012345678\",\n  \"proofImageUrl\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...\",\n  \"amount\": 760,\n  \"notes\": \"تم التحويل من فودافون كاش\"\n}\n// Required: paymentMethod, senderName, senderNumber, proofImageUrl, amount\n// paymentMethod: vodafone_cash | etisalat_cash | orange_money | bank_transfer | instapay | fawry | other\n// senderAccount: optional (wallet ID / bank account)\n// proofImageUrl: base64 data URI or uploaded image URL\n// amount: must match order totalAmount\n// 200 -> { success:true, message:\"Payment submitted successfully. Awaiting admin verification.\", data:{ order:{ id, orderNumber, status:PENDING_PAYMENT, paymentStatus:SUBMITTED, paymentMethod, senderName, senderNumber, proofImageUrl, paymentAmount, paymentSubmittedAt } } }"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/orders/ESIA-20260925-0042/payment",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "orders",
-                "ESIA-20260925-0042",
-                "payment"
-              ]
-            },
-            "description": "Public. Submits payment proof for an order. Updates order status to PENDING_PAYMENT and paymentStatus to SUBMITTED. Use orderNumber from create order response. Also available as /api/v1/orders/:orderNumber/payment"
+            "description": "Public (guest) or Authenticated. Creates order. If payment fields provided, creates order with PENDING_PAYMENT status and SUBMITTED payment status. If no payment fields, creates order with PENDING status and NOT_SUBMITTED payment status. Returns orderNumber for tracking. Also available as /api/v1/orders"
           },
           "response": []
         },
@@ -969,33 +939,6 @@
               ]
             },
             "description": "User only. Returns single order with full details. Also available as /api/v1/orders/my-orders/:id"
-          },
-          "response": []
-        },
-        {
-          "name": "PATCH /api/orders/my-orders/:id/cancel - Cancel My Order (Authenticated User)",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/orders/my-orders/1/cancel",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "orders",
-                "my-orders",
-                "1",
-                "cancel"
-              ]
-            },
-            "description": "User only. Can cancel if order not DELIVERED or CANCELLED. Also available as /api/v1/orders/my-orders/:id/cancel"
           },
           "response": []
         },

@@ -26,17 +26,15 @@ interface CreateOrderInput {
   totalAmount: number;
   userId?: number;
   notes?: string;
-}
-
-interface SubmitPaymentInput {
-  orderNumber: string;
-  paymentMethod: PaymentMethod;
-  senderName: string;
-  senderAccount: string | null;
-  senderNumber: string;
-  proofImageUrl: string;
-  amount: number;
-  notes?: string;
+  paymentData?: {
+    paymentMethod: PaymentMethod;
+    senderName: string;
+    senderAccount: string | null;
+    senderNumber: string;
+    proofImageUrl: string;
+    amount: number;
+    notes?: string;
+  };
 }
 
 interface OrderFilters {
@@ -81,9 +79,17 @@ class OrderServiceImpl {
         address: input.address,
         city: input.city ?? null,
         totalAmount: input.totalAmount,
-        status: OrderStatus.PENDING,
+        status: input.paymentData ? OrderStatus.PENDING_PAYMENT : OrderStatus.PENDING,
         notes: input.notes ?? null,
-        paymentStatus: PaymentStatus.NOT_SUBMITTED,
+        paymentStatus: input.paymentData ? PaymentStatus.SUBMITTED : PaymentStatus.NOT_SUBMITTED,
+        paymentMethod: input.paymentData?.paymentMethod ?? null,
+        senderName: input.paymentData?.senderName ?? null,
+        senderAccount: input.paymentData?.senderAccount ?? null,
+        senderNumber: input.paymentData?.senderNumber ?? null,
+        proofImageUrl: input.paymentData?.proofImageUrl ?? null,
+        paymentAmount: input.paymentData?.amount ?? null,
+        paymentNotes: input.paymentData?.notes ?? null,
+        paymentSubmittedAt: input.paymentData ? new Date() : null,
       });
 
       const savedOrder = await manager.save(order);
@@ -114,36 +120,6 @@ class OrderServiceImpl {
       }
 
       return fullOrder;
-    });
-  }
-
-  async submitPayment(input: SubmitPaymentInput): Promise<Order> {
-    return AppDataSource.transaction(async (manager) => {
-      const order = await manager.findOne(Order, {
-        where: { orderNumber: input.orderNumber },
-        relations: { items: true },
-      });
-
-      if (!order) {
-        throw new AppError("Order not found", 404);
-      }
-
-      if (order.paymentStatus !== PaymentStatus.NOT_SUBMITTED) {
-        throw new AppError("Payment already submitted for this order", 400);
-      }
-
-      order.paymentStatus = PaymentStatus.SUBMITTED;
-      order.paymentMethod = input.paymentMethod;
-      order.senderName = input.senderName;
-      order.senderAccount = input.senderAccount;
-      order.senderNumber = input.senderNumber;
-      order.proofImageUrl = input.proofImageUrl;
-      order.paymentAmount = input.amount;
-      order.paymentNotes = input.notes ?? null;
-      order.paymentSubmittedAt = new Date();
-      order.status = OrderStatus.PENDING_PAYMENT;
-
-      return manager.save(order);
     });
   }
 
@@ -320,24 +296,6 @@ class OrderServiceImpl {
       throw new AppError("Order not found", 404);
     }
     order.notes = notes;
-    return this.orderRepo.save(order);
-  }
-
-  async cancelOrder(orderId: number, userId?: number): Promise<Order> {
-    const order = await this.orderRepo.findOne({ where: { id: orderId } });
-    if (!order) {
-      throw new AppError("Order not found", 404);
-    }
-
-    if (userId && order.userId !== userId) {
-      throw new AppError("Unauthorized to cancel this order", 403);
-    }
-
-    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
-      throw new AppError("Cannot cancel this order", 400);
-    }
-
-    order.status = OrderStatus.CANCELLED;
     return this.orderRepo.save(order);
   }
 }

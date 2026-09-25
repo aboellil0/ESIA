@@ -27,6 +27,14 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     items,
     totalAmount,
     notes,
+    // Optional payment fields - if provided, order will be created with payment submitted
+    paymentMethod,
+    senderName,
+    senderAccount,
+    senderNumber,
+    proofImageUrl,
+    paymentAmount,
+    paymentNotes,
   } = req.body;
 
   if (!customerName || !email || !phone || !address || !items || !totalAmount) {
@@ -35,6 +43,17 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 
   if (!Array.isArray(items) || items.length === 0) {
     throw new AppError("Order must have at least one item", 400);
+  }
+
+  // If any payment field is provided, validate all required payment fields
+  const hasPaymentFields = paymentMethod || senderName || senderNumber || proofImageUrl || paymentAmount;
+  if (hasPaymentFields) {
+    if (!paymentMethod || !senderName || !senderNumber || !proofImageUrl || !paymentAmount) {
+      throw new AppError("Missing required payment fields: paymentMethod, senderName, senderNumber, proofImageUrl, paymentAmount", 400);
+    }
+    if (!Object.values(PaymentMethod).includes(paymentMethod)) {
+      throw new AppError("Invalid payment method", 400);
+    }
   }
 
   const userId = req.user?.id as number | undefined;
@@ -58,11 +77,23 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     totalAmount,
     userId,
     notes,
+    // Pass payment data if provided
+    paymentData: hasPaymentFields ? {
+      paymentMethod,
+      senderName,
+      senderAccount: senderAccount ?? null,
+      senderNumber,
+      proofImageUrl,
+      amount: paymentAmount,
+      notes: paymentNotes,
+    } : undefined,
   });
 
   res.status(201).json({
     success: true,
-    message: "Order created successfully. Please proceed to payment.",
+    message: hasPaymentFields
+      ? "Order created with payment submitted successfully. Awaiting admin verification."
+      : "Order created successfully. Please proceed to payment.",
     data: {
       order: {
         id: order.id,
@@ -74,58 +105,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       },
     },
     statusCode: 201,
-  });
-});
-
-export const submitPayment = asyncHandler(async (req: Request, res: Response) => {
-  const orderNumber = String(req.params.orderNumber);
-  const {
-    paymentMethod,
-    senderName,
-    senderAccount,
-    senderNumber,
-    proofImageUrl,
-    amount,
-    notes,
-  } = req.body;
-
-  if (!paymentMethod || !senderName || !senderNumber || !proofImageUrl || !amount) {
-    throw new AppError("Missing required payment fields: paymentMethod, senderName, senderNumber, proofImageUrl, amount", 400);
-  }
-
-  if (!Object.values(PaymentMethod).includes(paymentMethod)) {
-    throw new AppError("Invalid payment method", 400);
-  }
-
-  const order = await OrderService.submitPayment({
-    orderNumber,
-    paymentMethod,
-    senderName,
-    senderAccount: senderAccount ?? null,
-    senderNumber,
-    proofImageUrl,
-    amount,
-    notes,
-  });
-
-  res.json({
-    success: true,
-    message: "Payment submitted successfully. Awaiting admin verification.",
-    data: {
-      order: {
-        id: order.id,
-        orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        senderName: order.senderName,
-        senderNumber: order.senderNumber,
-        proofImageUrl: order.proofImageUrl,
-        paymentAmount: order.paymentAmount,
-        paymentSubmittedAt: order.paymentSubmittedAt,
-      },
-    },
-    statusCode: 200,
   });
 });
 
@@ -299,20 +278,6 @@ export const updateOrderNotes = asyncHandler(async (req: Request, res: Response)
   res.json({
     success: true,
     message: "Order notes updated successfully",
-    data: formatOrderResponse(order),
-    statusCode: 200,
-  });
-});
-
-export const cancelOrder = asyncHandler(async (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  const userId = req.user?.id as number | undefined;
-
-  const order = await OrderService.cancelOrder(id, userId);
-
-  res.json({
-    success: true,
-    message: "Order cancelled successfully",
     data: formatOrderResponse(order),
     statusCode: 200,
   });
