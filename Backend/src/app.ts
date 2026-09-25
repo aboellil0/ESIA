@@ -11,6 +11,7 @@ import { globalErrorHandler, notFoundHandler } from "./middlewares/error.middlew
 import router from "./routes";
 import authRoutes from "./routes/auth.routes";
 import orderRoutes from "./routes/order.routes";
+import cartRoutes from "./routes/cart.routes";
 
 const app = express();
 // Required when behind nginx/docker (express-rate-limit checks X-Forwarded-For)
@@ -80,6 +81,9 @@ app.use("/api/v1/auth", authLimiter, authRoutes);
 
 app.use("/api/orders", orderRoutes);
 app.use("/api/v1/orders", orderRoutes);
+
+app.use("/api/cart", cartRoutes);
+app.use("/api/v1/cart", cartRoutes);
 
 app.use("/api", router);
 app.use("/api/v1", router);

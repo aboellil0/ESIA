@@ -1118,6 +1118,153 @@
           },
           "response": []
         }
+      {
+      "name": "07 - Cart (/api/cart)",
+      "description": "Cart persistence for guests and authenticated users. Guests use x-guest-token header, users use Bearer token. All endpoints work with both auth types. Cart auto-created on first add. Variant matching by productId + color + size.",
+      "item": [
+        {
+          "name": "GET /api/cart - Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-guest-token",
+                "value": "{{guestToken}}",
+                "description": "Required for guests. Auto-generated on first request if not provided."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart"]
+            },
+            "description": "Public or Authenticated. Returns cart with items, product details, totals. Use x-guest-token header for guests, or Bearer {{accessToken}} for users. Also available as /api/v1/cart"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/cart/items - Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-guest-token",
+                "value": "{{guestToken}}",
+                "description": "Required for guests"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": 1,\n  \"quantity\": 2,\n  \"colorNameEn\": \"وردي\",\n  \"colorNameAr\": \"وردي\",\n  \"colorHex\": \"#FFC0CB\",\n  \"size\": \"M\"\n}\n// Required: productId, quantity\n// Optional: colorNameEn, colorNameAr, colorHex, size\n// Variant matching: productId + colorNameEn/colorHex + size"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "items"]
+            },
+            "description": "Public or Authenticated. Adds item to cart (creates cart if needed). If same variant exists, increments quantity. Returns updated cart with totals. Also available as /api/v1/cart/items"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/cart/items/:itemId - Update Cart Item Quantity",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-guest-token",
+                "value": "{{guestToken}}",
+                "description": "Required for guests"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 3\n}\n// quantity: 0 removes item, >0 updates quantity"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/items/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "items", "1"]
+            },
+            "description": "Public or Authenticated. Updates item quantity. Set quantity: 0 to remove item. Returns updated cart. Also available as /api/v1/cart/items/:itemId"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/cart/items/:itemId - Remove Item from Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-guest-token",
+                "value": "{{guestToken}}",
+                "description": "Required for guests"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/items/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "items", "1"]
+            },
+            "description": "Public or Authenticated. Removes specific cart item. Returns updated cart. Also available as /api/v1/cart/items/:itemId"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/cart - Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-guest-token",
+                "value": "{{guestToken}}",
+                "description": "Required for guests"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart"]
+            },
+            "description": "Public or Authenticated. Removes all items from cart. Returns { data: null }. Also available as /api/v1/cart"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/cart/merge - Merge Guest Cart (After Login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"guestToken\": \"abc123...\"\n}\n// Call after user logs in to merge their guest cart into user account"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/merge",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "merge"]
+            },
+            "description": "User only (Bearer token required). Merges guest cart (identified by guestToken) into authenticated user's cart. Combines quantities for matching variants. Returns merged user cart. Also available as /api/v1/cart/merge"
+          },
+          "response": []
+        }
       ]
     }
   ]
