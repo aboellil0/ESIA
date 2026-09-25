@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { register, login, refresh, logout, me } from "../controllers/auth.controller";
-import { protect, adminOnly, userOnly } from "../middlewares/auth.middleware";
+import { register, login, refresh, logout, me, createAdmin } from "../controllers/auth.controller";
+import { protect, adminOnly } from "../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -12,7 +12,6 @@ router.post("/logout", logout);
 
 // Authenticated
 router.get("/me", protect, me);
-router.get("/me/user", protect, userOnly, me);
-router.get("/me/admin", protect, adminOnly, me);
+router.post("/admins", createAdmin);
 
 export default router;

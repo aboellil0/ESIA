@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
+import { adminOnly } from "../middlewares/auth.middleware";
 import { generateDeviceId } from "../services/token.service";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -32,3 +33,9 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
 export const me = (req: Request, res: Response): void => {
   res.status(200).json({ success: true, message: "Operation completed successfully", data: { user: req.user }, statusCode: 200 });
 };
+
+export const createAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  const data = await AuthService.createAdmin({ email, password });
+  res.status(201).json({ success: true, message: "Admin created successfully", data, statusCode: 201 });
+});

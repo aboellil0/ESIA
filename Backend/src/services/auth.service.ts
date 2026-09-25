@@ -153,4 +153,22 @@ export const AuthService = {
     if (rawToken) await revokeRefreshToken(rawToken);
     return null;
   },
+
+  async createAdmin(data: { email?: string; password?: string }) {
+    const { email, password } = data;
+    if (!email || !password) throw AppError.validation("email and password are required");
+    validatePasswordStrength(password);
+
+    const adminRepo = AppDataSource.getRepository(Admin);
+    const existing = await adminRepo.findOne({ where: { email: email.toLowerCase() } });
+    if (existing) throw AppError.conflict("An admin with this email already exists");
+
+    const hash = await bcrypt.hash(password, config.bcryptRounds);
+    const admin = adminRepo.create({
+      email: email.toLowerCase(),
+      passwordHash: hash,
+    });
+    const saved = await adminRepo.save(admin);
+    return { id: saved.id, email: saved.email };
+  },
 };

@@ -1118,6 +1118,8 @@
           },
           "response": []
         }
+      ]
+    },
       {
       "name": "07 - Cart (/api/cart)",
       "description": "Cart persistence for guests and authenticated users. Guests use x-guest-token header, users use Bearer token. All endpoints work with both auth types. Cart auto-created on first add. Variant matching by productId + color + size.",
