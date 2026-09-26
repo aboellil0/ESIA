@@ -11,11 +11,14 @@ import {
   updateOrderNotes,
 } from "../controllers/order.controller";
 import { protect, adminOnly, userOnly } from "../middlewares/auth.middleware";
+import { upload } from "../middlewares/upload.middleware";
+import { processMedia } from "../middlewares/media.middleware";
 
 const router = Router();
 
 // Public routes (no authentication required)
-router.post("/", createOrder);
+// Support multipart/form-data for proof image upload (like products)
+router.post("/", upload.any(), processMedia, createOrder);
 router.get("/track/:orderNumber", trackOrder);
 
 // Authenticated user routes

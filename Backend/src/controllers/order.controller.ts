@@ -4,6 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { AppError } from "../utils/AppError";
 import { OrderStatus } from "../models/enums";
 import { PaymentMethod, PaymentStatus } from "../models/enums";
+import { toUrlPath } from "../middlewares/upload.middleware";
 
 function getQueryString(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -15,6 +16,20 @@ function getQueryString(req: Request, key: string): string | undefined {
 function getQueryNumber(req: Request, key: string, defaultVal: number): number {
   const val = getQueryString(req, key);
   return val ? Number(val) : defaultVal;
+}
+
+// Helper to get proof image URL from uploaded file or body URL
+function getProofImageUrl(req: Request): string | null {
+  // Check uploaded file (fieldname "proofImage" or "proofImageUrl")
+  const files = (req as any).files;
+  if (files && Array.isArray(files)) {
+    const proofFile = files.find((f: any) => f.fieldname === "proofImage" || f.fieldname === "proofImageUrl");
+    if (proofFile) {
+      return toUrlPath(proofFile.path);
+    }
+  }
+  // Fallback to body URL
+  return req.body.proofImageUrl || null;
 }
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
@@ -32,10 +47,12 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     senderName,
     senderAccount,
     senderNumber,
-    proofImageUrl,
     paymentAmount,
     paymentNotes,
   } = req.body;
+
+  // Get proof image from uploaded file or body URL
+  const proofImageUrl = getProofImageUrl(req);
 
   if (!customerName || !email || !phone || !address || !items || !totalAmount) {
     throw new AppError("Missing required fields: customerName, email, phone, address, items, totalAmount", 400);
@@ -68,9 +85,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       productId: item.productId,
       productName: item.productName || item.name,
       unitPrice: item.unitPrice || item.price,
-      colorNameEn: item.colorNameEn || item.color,
-      colorNameAr: item.colorNameAr,
-      colorHex: item.colorHex,
+      colorId: item.colorId,
       size: item.size,
       quantity: item.quantity || item.qty || 1,
     })),
@@ -83,7 +98,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       senderName,
       senderAccount: senderAccount ?? null,
       senderNumber,
-      proofImageUrl,
+      proofImageUrl: proofImageUrl!,
       amount: paymentAmount,
       notes: paymentNotes,
     } : undefined,
