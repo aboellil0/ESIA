@@ -190,48 +190,15 @@ class CartServiceImpl {
     await this.cartItemRepo.delete({ cartId: cart.id });
   }
 
-  async mergeCarts(userId: number, guestToken: string): Promise<CartResponse> {
-    const guestCart = await this.cartRepo.findOne({
-      where: { guestToken },
-      relations: { items: true },
-    });
-
-    if (!guestCart || guestCart.items.length === 0) {
-      return this.getCart(userId) as Promise<CartResponse>;
+  async mergeCarts(userId: number, items: Array<{ productId: number; quantity: number; colorId?: number; size?: string }>): Promise<CartResponse> {
+    for (const item of items) {
+      await this.addItem(userId, undefined, {
+        productId: item.productId,
+        quantity: item.quantity,
+        colorId: item.colorId,
+        size: item.size,
+      });
     }
-
-    const userCart = await this.getOrCreateCart(userId);
-
-    for (const guestItem of guestCart.items) {
-      const whereClause: any = {
-        cartId: userCart.id,
-        productId: guestItem.productId,
-      };
-      if (guestItem.colorId) whereClause.colorId = guestItem.colorId;
-      if (guestItem.size) whereClause.size = guestItem.size as ProductSize;
-
-      let userItem = await this.cartItemRepo.findOne({ where: whereClause });
-
-      if (userItem) {
-        userItem.quantity += guestItem.quantity;
-        await this.cartItemRepo.save(userItem);
-      } else {
-        const newItem = this.cartItemRepo.create({
-          cartId: userCart.id,
-          productId: guestItem.productId,
-          productName: guestItem.productName,
-          unitPrice: guestItem.unitPrice,
-          colorId: guestItem.colorId ?? null,
-          size: guestItem.size ? (guestItem.size as ProductSize) : null,
-          quantity: guestItem.quantity,
-          productImage: guestItem.productImage,
-        });
-        await this.cartItemRepo.save(newItem);
-      }
-    }
-
-    await this.cartItemRepo.delete({ cartId: guestCart.id });
-    await this.cartRepo.remove(guestCart);
 
     return this.getCart(userId) as Promise<CartResponse>;
   }

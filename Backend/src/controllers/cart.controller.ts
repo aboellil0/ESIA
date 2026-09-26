@@ -96,13 +96,13 @@ export const clearCart = asyncHandler(async (req: Request, res: Response) => {
 
 export const mergeCarts = asyncHandler(async (req: Request, res: Response) => {
   const userId = Number(req.user!.id);
-  const guestToken = req.body.guestToken as string;
+  const { items } = req.body;
 
-  if (!guestToken) {
-    throw new AppError("guestToken is required", 400);
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new AppError("items array is required", 400);
   }
 
-  const cart = await CartService.mergeCarts(userId, guestToken);
+  const cart = await CartService.mergeCarts(userId, items);
 
   res.json({
     success: true,
