@@ -2,6 +2,7 @@ import { AppDataSource } from "../config/data-source";
 import { Cart } from "../models/Cart";
 import { CartItem } from "../models/CartItem";
 import { Product } from "../models/Product";
+import { Color } from "../models/Color";
 import { ProductSize } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import crypto from "crypto";
@@ -9,9 +10,7 @@ import crypto from "crypto";
 interface CartItemInput {
   productId: number;
   quantity: number;
-  colorNameEn?: string;
-  colorNameAr?: string;
-  colorHex?: string;
+  colorId?: number;
   size?: string;
 }
 
@@ -31,9 +30,8 @@ interface CartItemWithProduct {
   productId: number;
   productName: string;
   unitPrice: number;
-  colorNameEn: string | null;
-  colorNameAr: string | null;
-  colorHex: string | null;
+  colorId: number | null;
+  color: { id: number; nameEn: string; nameAr: string; hexCode: string } | null;
   size: string | null;
   quantity: number;
   productImage: string | null;
@@ -58,8 +56,7 @@ class CartServiceImpl {
 
   private buildItemWhereClause(cartId: number, input: CartItemInput) {
     const where: any = { cartId, productId: input.productId };
-    if (input.colorNameEn) where.colorNameEn = input.colorNameEn;
-    if (input.colorHex) where.colorHex = input.colorHex;
+    if (input.colorId) where.colorId = input.colorId;
     if (input.size) where.size = input.size as ProductSize;
     return where;
   }
@@ -121,6 +118,13 @@ class CartServiceImpl {
       throw new AppError("Product not found", 404);
     }
 
+    if (input.colorId) {
+      const color = await AppDataSource.getRepository(Color).findOne({ where: { id: input.colorId } });
+      if (!color) {
+        throw new AppError("Color not found", 404);
+      }
+    }
+
     const whereClause = this.buildItemWhereClause(cart.id, input);
     let cartItem = await this.cartItemRepo.findOne({ where: whereClause });
 
@@ -133,9 +137,7 @@ class CartServiceImpl {
         productId: input.productId,
         productName: product.name,
         unitPrice: product.price,
-        colorNameEn: input.colorNameEn ?? null,
-        colorNameAr: input.colorNameAr ?? null,
-        colorHex: input.colorHex ?? null,
+        colorId: input.colorId ?? null,
         size: input.size ? (input.size as ProductSize) : null,
         quantity: input.quantity,
         productImage: product.mainImageUrl ?? null,
@@ -205,8 +207,7 @@ class CartServiceImpl {
         cartId: userCart.id,
         productId: guestItem.productId,
       };
-      if (guestItem.colorNameEn) whereClause.colorNameEn = guestItem.colorNameEn;
-      if (guestItem.colorHex) whereClause.colorHex = guestItem.colorHex;
+      if (guestItem.colorId) whereClause.colorId = guestItem.colorId;
       if (guestItem.size) whereClause.size = guestItem.size as ProductSize;
 
       let userItem = await this.cartItemRepo.findOne({ where: whereClause });
@@ -220,9 +221,7 @@ class CartServiceImpl {
           productId: guestItem.productId,
           productName: guestItem.productName,
           unitPrice: guestItem.unitPrice,
-          colorNameEn: guestItem.colorNameEn,
-          colorNameAr: guestItem.colorNameAr,
-          colorHex: guestItem.colorHex,
+          colorId: guestItem.colorId ?? null,
           size: guestItem.size ? (guestItem.size as ProductSize) : null,
           quantity: guestItem.quantity,
           productImage: guestItem.productImage,
@@ -238,6 +237,7 @@ class CartServiceImpl {
   }
 
   private async formatCartResponse(cart: Cart): Promise<CartResponse> {
+    const colorRepo = AppDataSource.getRepository(Color);
     const itemsWithProducts = await Promise.all(
       cart.items.map(async (item) => {
         const product = await this.productRepo.findOne({
@@ -245,14 +245,26 @@ class CartServiceImpl {
           relations: { colors: true, sizes: true, images: true },
         });
 
+        let colorData: { id: number; nameEn: string; nameAr: string; hexCode: string } | null = null;
+        if (item.colorId) {
+          const color = await colorRepo.findOne({ where: { id: item.colorId } });
+          if (color) {
+            colorData = {
+              id: color.id,
+              nameEn: color.nameEn,
+              nameAr: color.nameAr,
+              hexCode: color.hexCode,
+            };
+          }
+        }
+
         return {
           id: item.id,
           productId: item.productId,
           productName: item.productName,
           unitPrice: item.unitPrice,
-          colorNameEn: item.colorNameEn,
-          colorNameAr: item.colorNameAr,
-          colorHex: item.colorHex,
+          colorId: item.colorId,
+          color: colorData,
           size: item.size,
           quantity: item.quantity,
           productImage: item.productImage,

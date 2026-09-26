@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } 
 import { Expose } from "class-transformer";
 import { Order } from "./Order";
 import { Product } from "./Product";
+import { Color } from "./Color";
 import { ProductSize } from "./enums";
 
 @Entity("order_items")
@@ -34,27 +35,13 @@ export class OrderItem {
   @Expose()
   unitPrice!: number;
 
-  @Column({ name: "color_name_en", type: "varchar", length: 50, nullable: true })
+  @Column({ name: "color_id", type: "int", nullable: true })
   @Expose()
-  colorNameEn!: string | null;
+  colorId!: number | null;
 
-  @Column({ name: "color_name_ar", type: "varchar", length: 50, nullable: true })
-  @Expose()
-  colorNameAr!: string | null;
-
-  @Column({ name: "color_hex", type: "varchar", length: 7, nullable: true })
-  @Expose()
-  colorHex!: string | null;
-
-  // Deprecated single-field color kept as getter for backward compat — not mapped to DB
-  // Use colorNameEn / colorNameAr / colorHex instead.
-  @Expose()
-  get color(): string | null {
-    return this.colorNameEn ?? this.colorHex ?? null;
-  }
-  set color(value: string | null) {
-    this.colorNameEn = value;
-  }
+  @ManyToOne(() => Color, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "color_id" })
+  color!: Color | null;
 
   @Column({ type: "enum", enum: ProductSize, nullable: true })
   @Expose()

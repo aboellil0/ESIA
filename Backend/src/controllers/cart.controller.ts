@@ -20,7 +20,7 @@ export const getCart = asyncHandler(async (req: Request, res: Response) => {
 export const addToCart = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id as number | undefined;
   const guestToken = req.headers["x-guest-token"] as string | undefined;
-  const { productId, quantity, colorNameEn, colorNameAr, colorHex, size } = req.body;
+  const { productId, quantity, colorId, size } = req.body;
 
   if (!productId || !quantity) {
     throw new AppError("productId and quantity are required", 400);
@@ -33,9 +33,7 @@ export const addToCart = asyncHandler(async (req: Request, res: Response) => {
   const cart = await CartService.addItem(userId, guestToken, {
     productId,
     quantity,
-    colorNameEn,
-    colorNameAr,
-    colorHex,
+    colorId,
     size,
   });
 
