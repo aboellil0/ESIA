@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { protect, adminOnly, userOnly, adminOrUser } from "../middlewares/auth.middleware";
 import categoryRoutes from "./category.routes";
 import productRoutes from "./product.routes";
+import colorRoutes from "./color.routes";
 
 const router = Router();
 
@@ -11,6 +12,7 @@ router.get("/", (_req: Request, res: Response) => {
 
 router.use("/categories", categoryRoutes);
 router.use("/products", productRoutes);
+router.use("/colors", colorRoutes);
 
 // Auth routes mounted directly in app.ts with rate-limit, so no mount here
 // Example usage:

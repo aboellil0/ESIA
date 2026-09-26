@@ -162,8 +162,8 @@
       ]
     },
     {
-      "name": "02 - Auth Public (/api/auth)",
-      "description": "No Bearer required. Rate-limited: 10 req/min (authLimiter in app.ts:58).",
+      "name": "02 - Auth (/api/auth)",
+      "description": "All auth endpoints. Public: register, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58).",
       "item": [
         {
           "name": "POST /api/auth/register",
@@ -308,13 +308,148 @@
             "description": "Public, revokes refresh token. auth.controller.ts:34, auth.service.ts:134\nBody: { refreshToken }. If omitted, still 200 but nothing revoked. Always 200 { success:true, data:null }."
           },
           "response": []
+        },
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Authenticated (any role - user or admin). auth.controller.ts:32\nRequires Bearer {{accessToken}} (JWT 15m). Returns current user profile with role.\n200 -> { success:true, data:{ user:{id,email,role:\"user\"|\"admin\",...} } }\n401 if no/invalid token."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/admins",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"email\": \"newadmin@example.com\",\n \"password\": \"Admin123!\"\n}\n// Admin only (protect + adminOnly). auth.controller.ts:createAdmin\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nPassword policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces.\n201 -> { success:true, message:\"Admin created successfully\", data:{id,email}, statusCode:201 }\n400 if validation fails, 401 if no token, 403 if not admin, 409 if email exists."
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "admins"
+              ]
+            },
+            "description": "Admin only. Creates a new admin account. auth.controller.ts:createAdmin, auth.service.ts:createAdmin\nRequires Bearer admin token. Body: { email, password }.\n201 -> { success:true, message:\"Admin created successfully\", data:{id,email}, statusCode:201 }\n400 if validation fails, 401 if no token, 403 if not admin, 409 if email already exists."
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "03 - Auth Authenticated (/api/auth/me)",
-      "description": "Requires Authorization: Bearer {{accessToken}}. All use protect middleware (auth.middleware.ts:29). Token from ACCESS_TOKEN_SECRET / JWT_SECRET (15m default). [Endpoints removed per request]",
-      "item": []
+      "name": "03 - Colors (/api/colors)",
+      "description": "Color management. Public reads (GET), admin writes (POST/DELETE). Routes: Backend/src/routes/color.routes.ts, Controller: Backend/src/controllers/color.controller.ts. Mounted at /api/colors and /api/v1/colors via routes/index.ts. Admin = protect + adminOnly requires Bearer {{accessToken}} with role=admin. Hex code must be valid format (#RRGGBB). Names unique.",
+      "item": [
+        {
+          "name": "GET /api/colors - List all",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/colors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "colors"
+              ]
+            },
+            "description": "Public. color.controller.ts:getAllColors. Returns all colors ordered by nameEn ASC.\n200 -> { success:true, data:[{id,nameEn,nameAr,hexCode}], statusCode:200 }\nAlso available as /api/v1/colors"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/colors - Create (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"nameEn\": \"Red\",\n \"nameAr\": \"أحمر\",\n \"hexCode\": \"#FF0000\"\n}\n// nameEn required, unique, max 50 chars\n// nameAr required, unique, max 50 chars\n// hexCode required, unique, format #RRGGBB (e.g. #FF0000, #00FF00, #0000FF)\n// Examples:\n// { \"nameEn\": \"Blue\", \"nameAr\": \"أزرق\", \"hexCode\": \"#0000FF\" }\n// { \"nameEn\": \"Gold\", \"nameAr\": \"ذهبي\", \"hexCode\": \"#FFD700\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/colors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "colors"
+              ]
+            },
+            "description": "Admin only (protect + adminOnly). color.controller.ts:createColor\nRequires Bearer {{accessToken}} with role=admin (login as admin@esia.local / Admin123!).\nBody: { nameEn, nameAr, hexCode } -> all required and unique.\n201 -> { success:true, message:\"Color created successfully\", data:{id,nameEn,nameAr,hexCode}, statusCode:201 }\n400 if validation fails, 401 if no token, 403 if not admin, 409 if nameEn/nameAr/hexCode already exists."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/colors/:id - Delete (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/colors/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "colors",
+                "1"
+              ]
+            },
+            "description": "Admin only (protect + adminOnly). color.controller.ts:deleteColor\nRequires Bearer admin token. Deletes color by id.\n200 -> { success:true, message:\"Color deleted successfully\", data:null, statusCode:200 }\n400 if invalid id, 401/403 if not admin, 404 if not found."
+          },
+          "response": []
+        }
+      ]
     },
     {
       "name": "04 - Categories (/api/categories)",
