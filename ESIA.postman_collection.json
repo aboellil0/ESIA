@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ESIA API",
-    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-25 - Added Orders (simplified flow)\nUpdated: 2026-10-03 - Email verification via Brevo (register sends confirmation link; new verify-email GET+POST and resend-verification; login gated until verified)\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (/api/auth/me)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)\n- 06 Orders (/api/orders)",
+    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-25 - Added Orders (simplified flow)\nUpdated: 2026-10-03 - Email verification via Brevo (register sends confirmation link; new verify-email GET+POST and resend-verification; login gated until verified)\nUpdated: 2026-10-03 - Forgot/reset password via Brevo (forgot-password sends reset link; reset-password sets new password, revokes sessions)\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (/api/auth/me)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)\n- 06 Orders (/api/orders)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "esia-api-2026-09-21"
   },
@@ -35,6 +35,12 @@
       "value": "",
       "type": "string",
       "description": "Raw email-verification token from the Brevo confirmation link - paste manually, used by verify-email requests"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string",
+      "description": "Raw password-reset token from the Brevo reset email link - paste manually, used by reset-password request"
     }
   ],
   "auth": {
@@ -169,7 +175,7 @@
     },
     {
       "name": "02 - Auth (/api/auth)",
-      "description": "All auth endpoints. Public: register, verify-email (GET+POST), resend-verification, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58). Registration sends a Brevo confirmation email; login is blocked until the email is verified.",
+      "description": "All auth endpoints. Public: register, verify-email (GET+POST), resend-verification, forgot-password, reset-password, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58). Registration sends a Brevo confirmation email; login is blocked until the email is verified. Password reset also goes via Brevo email link.",
       "item": [
         {
           "name": "POST /api/auth/register",
@@ -397,6 +403,64 @@
               ]
             },
             "description": "Public. Re-sends the confirmation email. controller: auth.controller.ts:resendVerification, service: auth.service.ts:resendVerification\nBody: { email }. Generates a new token + expiry (old link invalidated) and sends a new Brevo email.\n200 -> { success:true, message:\"Verification email sent. Please check your inbox.\", data:{ email, requiresVerification:true } }\n400 if email already verified (just log in), 404 if no account with this email.\nAlso available as /api/v1/auth/resend-verification."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/forgot-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"email\": \"test@example.com\"\n}\n// Sends a Brevo password-reset email with link $FRONTEND_URL/reset-password?token=... (if the account exists)\n// Token is single-use, sha256-hashed in DB, expires in PASSWORD_RESET_EXPIRES_MINUTES (default 60)"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Public. Requests a password reset. controller: auth.controller.ts:forgotPassword, service: auth.service.ts:forgotPassword (+ mail.service.ts via Brevo)\nBody: { email }. Always returns 200 with a generic message (even if the email is not registered) to avoid account enumeration.\n200 -> { success:true, message:\"If an account exists for this email, a password reset link has been sent.\", data:{ email } }\n400 if email missing.\nNext: copy the token from the Brevo reset email into {{resetToken}}, then call POST /api/auth/reset-password.\nAlso available as /api/v1/auth/forgot-password."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/reset-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"token\": \"{{resetToken}}\",\n \"newPassword\": \"NewPassword123!\"\n}\n// Token: raw {{resetToken}} from the Brevo reset link. Also accepts { \"password\": \"...\" } as alias for newPassword.\n// Password policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Public. Sets a new password. controller: auth.controller.ts:resetPassword, service: auth.service.ts:resetPassword\nBody: { token, newPassword } (token may also come as ?token= query). Token is single-use: consumed on success, and ALL existing refresh sessions are revoked (re-login required everywhere).\n200 -> { success:true, message:\"Password has been reset successfully. You can now log in.\", data:{ id, email } }\n400 if token missing/invalid/expired or password too weak — request a new link via POST /api/auth/forgot-password.\nAlso available as /api/v1/auth/reset-password."
           },
           "response": []
         },

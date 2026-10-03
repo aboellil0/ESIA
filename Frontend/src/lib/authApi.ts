@@ -20,6 +20,16 @@ export async function resendVerificationApi(email: string) {
   return data;
 }
 
+export async function forgotPasswordApi(email: string) {
+  const { data } = await api.post("/auth/forgot-password", { email });
+  return data;
+}
+
+export async function resetPasswordApi(token: string, newPassword: string) {
+  const { data } = await api.post("/auth/reset-password", { token, newPassword });
+  return data;
+}
+
 export function getApiErrorMessage(err: any, fallback = "Something went wrong."): string {
   return err?.response?.data?.message || err?.message || fallback;
 }

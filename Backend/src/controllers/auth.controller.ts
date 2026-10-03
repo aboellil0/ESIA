@@ -22,6 +22,19 @@ export const resendVerification = asyncHandler(async (req: Request, res: Respons
   res.status(200).json({ success: true, message: "Verification email sent. Please check your inbox.", data, statusCode: 200 });
 });
 
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const data = await AuthService.forgotPassword(email);
+  res.status(200).json({ success: true, message: "If an account exists for this email, a password reset link has been sent.", data, statusCode: 200 });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const token = (req.body.token as string) || (req.query.token as string);
+  const { password, newPassword } = req.body;
+  const data = await AuthService.resetPassword(token, newPassword || password);
+  res.status(200).json({ success: true, message: "Password has been reset successfully. You can now log in.", data, statusCode: 200 });
+});
+
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, username, identifier, password } = req.body;
   const loginId = identifier || email || username;

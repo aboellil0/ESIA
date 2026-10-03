@@ -15,6 +15,7 @@ interface Config {
   brevoSenderName: string;
   frontendUrl: string;
   emailVerificationExpiresHours: number;
+  passwordResetExpiresMinutes: number;
 }
 
 const config: Config = {
@@ -33,6 +34,9 @@ const config: Config = {
   emailVerificationExpiresHours: process.env.EMAIL_VERIFICATION_EXPIRES_HOURS
     ? Number(process.env.EMAIL_VERIFICATION_EXPIRES_HOURS)
     : 24,
+  passwordResetExpiresMinutes: process.env.PASSWORD_RESET_EXPIRES_MINUTES
+    ? Number(process.env.PASSWORD_RESET_EXPIRES_MINUTES)
+    : 60,
 };
 
 export default config;

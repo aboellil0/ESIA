@@ -15,6 +15,7 @@ import Checkout from "./components/Checkout";
 import Storefront from "./components/Storefront";
 import AuthPage from "./components/AuthPage";
 import VerifyEmail from "./components/VerifyEmail";
+import ResetPassword from "./components/ResetPassword";
 import { getDemoUser } from "./lib/demoAuth";
 
 export type View =
@@ -297,6 +298,10 @@ function AppShell({
 
   if (location.pathname === "/verify-email") {
     return <VerifyEmail />;
+  }
+
+  if (location.pathname === "/reset-password") {
+    return <ResetPassword />;
   }
 
   if (!user && !isGuestMode && showWelcomeModal) {
@@ -603,6 +608,7 @@ function AppShell({
         />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

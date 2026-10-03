@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useDemoAuth, signUpDemoUser, signInDemoUser } from "../lib/demoAuth";
-import { registerApi, loginApi, resendVerificationApi, getApiErrorMessage, isEmailNotVerifiedError } from "../lib/authApi";
+import { registerApi, loginApi, resendVerificationApi, forgotPasswordApi, getApiErrorMessage, isEmailNotVerifiedError } from "../lib/authApi";
 
 function DemoAuthPage() {
   const { user, isLoading, signOut, error: demoError } = useDemoAuth();
@@ -11,6 +11,7 @@ function DemoAuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [needsVerificationFor, setNeedsVerificationFor] = useState<string | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
 
   if (isLoading) {
     return (
@@ -102,6 +103,20 @@ function DemoAuthPage() {
     }
   };
 
+  const handleForgot = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await forgotPasswordApi(email);
+      setNotice(res?.message || "If an account exists for this email, a password reset link has been sent.");
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, "Could not send reset email."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const displayError = error || demoError?.message || null;
 
   return (
@@ -160,6 +175,25 @@ function DemoAuthPage() {
               Resend confirmation email
             </button>
           ) : null}
+
+          {showForgot ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleForgot}
+              className="w-full rounded-xl bg-[#9a4f63] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#843e51] disabled:opacity-60"
+            >
+              Send password reset email
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setShowForgot(true); setError(null); setNotice(null); }}
+              className="w-full text-center text-sm font-semibold text-[#9a4f63] hover:underline"
+            >
+              Forgot password?
+            </button>
+          )}
         </div>
 
         {notice ? (

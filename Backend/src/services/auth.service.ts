@@ -7,7 +7,7 @@ import { User } from "../models/User";
 import { Admin } from "../models/Admin";
 import { RefreshToken } from "../models/RefreshToken";
 import { AppError } from "../utils/AppError";
-import { buildVerificationUrl, sendVerificationEmail } from "./mail.service";
+import { buildPasswordResetUrl, buildVerificationUrl, sendPasswordResetEmail, sendVerificationEmail } from "./mail.service";
 import {
   signAccessToken,
   generateRefreshToken,
@@ -114,6 +114,44 @@ export const AuthService = {
     await userRepo.save(user);
     await sendVerificationEmailSafe(user.email, user.name, rawToken);
     return { email: user.email, requiresVerification: true };
+  },
+
+  async forgotPassword(email?: string) {
+    if (!email) throw AppError.validation("Email is required");
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { email: email.toLowerCase() } });
+    // Always respond with success to avoid revealing which emails are registered.
+    if (!user) return { email: email.toLowerCase() };
+    const { rawToken, tokenHash, expiresAt } = newPasswordResetToken();
+    user.resetTokenHash = tokenHash;
+    user.resetExpiresAt = expiresAt;
+    await userRepo.save(user);
+    try {
+      await sendPasswordResetEmail(user.email, user.name, buildPasswordResetUrl(rawToken));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[mail] password reset email failed:", (err as Error).message);
+    }
+    return { email: user.email };
+  },
+
+  async resetPassword(rawToken?: string, newPassword?: string) {
+    if (!rawToken) throw AppError.validation("Reset token is required");
+    if (!newPassword) throw AppError.validation("New password is required");
+    validatePasswordStrength(newPassword);
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { resetTokenHash: hashVerificationToken(rawToken) } });
+    if (!user) throw AppError.badRequest("Invalid or expired password reset link");
+    if (!user.resetExpiresAt || user.resetExpiresAt < new Date()) {
+      throw AppError.badRequest("Password reset link has expired. Please request a new one.");
+    }
+    user.passwordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
+    user.resetTokenHash = null;
+    user.resetExpiresAt = null;
+    await userRepo.save(user);
+    // Invalidate all sessions issued before the reset.
+    await AppDataSource.getRepository(RefreshToken).delete({ userId: user.id });
+    return { id: user.id, email: user.email };
   },
 
   async login(identifier?: string, password?: string, deviceId: string = "unknown") {
@@ -247,6 +285,16 @@ function newVerificationToken(): { rawToken: string; tokenHash: string; expiresA
     rawToken,
     tokenHash: hashVerificationToken(rawToken),
     expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000),
+  };
+}
+
+function newPasswordResetToken(): { rawToken: string; tokenHash: string; expiresAt: Date } {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const minutes = config.passwordResetExpiresMinutes || 60;
+  return {
+    rawToken,
+    tokenHash: hashVerificationToken(rawToken),
+    expiresAt: new Date(Date.now() + minutes * 60 * 1000),
   };
 }
 
