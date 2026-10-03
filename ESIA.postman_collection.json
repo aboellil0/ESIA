@@ -175,7 +175,7 @@
     },
     {
       "name": "02 - Auth (/api/auth)",
-      "description": "All auth endpoints. Public: register, verify-email (GET+POST), resend-verification, forgot-password, reset-password, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58). Registration sends a Brevo confirmation email; login is blocked until the email is verified. Password reset also goes via Brevo email link.",
+      "description": "All auth endpoints. Public: register, verify-email (GET+POST), resend-verification, forgot-password, reset-password, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58). Registration sends a Brevo confirmation email; login is blocked until the email is verified. Password reset also goes via Brevo email link. Tokens live in the user_tokens table: one row per user, so any new token (verification or reset) replaces the previous one.",
       "item": [
         {
           "name": "POST /api/auth/register",
@@ -431,7 +431,7 @@
                 "forgot-password"
               ]
             },
-            "description": "Public. Requests a password reset. controller: auth.controller.ts:forgotPassword, service: auth.service.ts:forgotPassword (+ mail.service.ts via Brevo)\nBody: { email }. Always returns 200 with a generic message (even if the email is not registered) to avoid account enumeration.\n200 -> { success:true, message:\"If an account exists for this email, a password reset link has been sent.\", data:{ email } }\n400 if email missing.\nNext: copy the token from the Brevo reset email into {{resetToken}}, then call POST /api/auth/reset-password.\nAlso available as /api/v1/auth/forgot-password."
+            "description": "Public. Requests a password reset. controller: auth.controller.ts:forgotPassword, service: auth.service.ts:forgotPassword (+ mail.service.ts via Brevo)\nBody: { email }. Always returns 200 with a generic message (even if the email is not registered) to avoid account enumeration.\n200 -> { success:true, message:\"If an account exists for this email, a password reset link has been sent.\", data:{ email } }\n400 if email missing.\nNote: one token per user — this invalidates any pending verification link (and vice versa: resend-verification invalidates a pending reset link).\nNext: copy the token from the Brevo reset email into {{resetToken}}, then call POST /api/auth/reset-password.\nAlso available as /api/v1/auth/forgot-password."
           },
           "response": []
         },

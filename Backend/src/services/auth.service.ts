@@ -1,13 +1,13 @@
 import "reflect-metadata";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../models/User";
 import { Admin } from "../models/Admin";
 import { RefreshToken } from "../models/RefreshToken";
 import { AppError } from "../utils/AppError";
 import { buildPasswordResetUrl, buildVerificationUrl, sendPasswordResetEmail, sendVerificationEmail } from "./mail.service";
+import { issueUserToken, takeUserToken } from "./user-token.service";
 import {
   signAccessToken,
   generateRefreshToken,
@@ -16,7 +16,7 @@ import {
   rotateRefreshToken,
   revokeRefreshToken,
 } from "./token.service";
-import { UserRole } from "../models/enums";
+import { UserRole, UserTokenType } from "../models/enums";
 import config from "../config";
 
 const PASSWORD_REGEX = {
@@ -51,13 +51,12 @@ export const AuthService = {
     if (existing) {
       // Allow re-register / resend if a previous signup never verified
       if (!existing.isVerified) {
-        const { rawToken, tokenHash, expiresAt } = newVerificationToken();
         existing.name = name;
         existing.phone = phone || null;
         existing.passwordHash = await bcrypt.hash(password, config.bcryptRounds);
-        existing.verificationTokenHash = tokenHash;
-        existing.verificationExpiresAt = expiresAt;
         await userRepo.save(existing);
+        // One-to-one token: replaces any previous token for this user.
+        const rawToken = await issueUserToken(existing.id, UserTokenType.EMAIL_VERIFICATION, verificationTtlMs());
         await sendVerificationEmailSafe(existing.email, existing.name, rawToken);
         return { id: existing.id, name: existing.name, email: existing.email, phone: existing.phone, isVerified: false, requiresVerification: true };
       }
@@ -65,40 +64,29 @@ export const AuthService = {
     }
 
     const hash = await bcrypt.hash(password, config.bcryptRounds);
-    const { rawToken, tokenHash, expiresAt } = newVerificationToken();
     const user = userRepo.create({
       name,
       email: email.toLowerCase(),
       passwordHash: hash,
       phone: phone || null,
       isVerified: false,
-      verificationTokenHash: tokenHash,
-      verificationExpiresAt: expiresAt,
     });
     const saved = await userRepo.save(user);
+    const rawToken = await issueUserToken(saved.id, UserTokenType.EMAIL_VERIFICATION, verificationTtlMs());
     await sendVerificationEmailSafe(saved.email, saved.name, rawToken);
     return { id: saved.id, name: saved.name, email: saved.email, phone: saved.phone, isVerified: false, requiresVerification: true };
   },
 
   async verifyEmail(rawToken?: string) {
     if (!rawToken) throw AppError.validation("Verification token is required");
-    const tokenHash = hashVerificationToken(rawToken);
-    const userRepo = AppDataSource.getRepository(User);
-    const user = await userRepo.findOne({ where: { verificationTokenHash: tokenHash } });
-    if (!user) throw AppError.badRequest("Invalid or expired verification link");
-    if (user.isVerified) {
-      user.verificationTokenHash = null;
-      user.verificationExpiresAt = null;
-      await userRepo.save(user);
-      return { id: user.id, email: user.email, isVerified: true };
+    const taken = await takeUserToken(rawToken, UserTokenType.EMAIL_VERIFICATION);
+    if (taken.status === "invalid") throw AppError.badRequest("Invalid verification link");
+    if (taken.status === "expired") throw AppError.badRequest("Verification link has expired. Please request a new one.");
+    const user = taken.user;
+    if (!user.isVerified) {
+      user.isVerified = true;
+      await AppDataSource.getRepository(User).save(user);
     }
-    if (!user.verificationExpiresAt || user.verificationExpiresAt < new Date()) {
-      throw AppError.badRequest("Verification link has expired. Please request a new one.");
-    }
-    user.isVerified = true;
-    user.verificationTokenHash = null;
-    user.verificationExpiresAt = null;
-    await userRepo.save(user);
     return { id: user.id, name: user.name, email: user.email, isVerified: true };
   },
 
@@ -108,10 +96,7 @@ export const AuthService = {
     const user = await userRepo.findOne({ where: { email: email.toLowerCase() } });
     if (!user) throw AppError.notFound("No account found with this email");
     if (user.isVerified) throw AppError.badRequest("Email is already verified. You can log in.");
-    const { rawToken, tokenHash, expiresAt } = newVerificationToken();
-    user.verificationTokenHash = tokenHash;
-    user.verificationExpiresAt = expiresAt;
-    await userRepo.save(user);
+    const rawToken = await issueUserToken(user.id, UserTokenType.EMAIL_VERIFICATION, verificationTtlMs());
     await sendVerificationEmailSafe(user.email, user.name, rawToken);
     return { email: user.email, requiresVerification: true };
   },
@@ -122,10 +107,7 @@ export const AuthService = {
     const user = await userRepo.findOne({ where: { email: email.toLowerCase() } });
     // Always respond with success to avoid revealing which emails are registered.
     if (!user) return { email: email.toLowerCase() };
-    const { rawToken, tokenHash, expiresAt } = newPasswordResetToken();
-    user.resetTokenHash = tokenHash;
-    user.resetExpiresAt = expiresAt;
-    await userRepo.save(user);
+    const rawToken = await issueUserToken(user.id, UserTokenType.PASSWORD_RESET, passwordResetTtlMs());
     try {
       await sendPasswordResetEmail(user.email, user.name, buildPasswordResetUrl(rawToken));
     } catch (err) {
@@ -139,16 +121,12 @@ export const AuthService = {
     if (!rawToken) throw AppError.validation("Reset token is required");
     if (!newPassword) throw AppError.validation("New password is required");
     validatePasswordStrength(newPassword);
-    const userRepo = AppDataSource.getRepository(User);
-    const user = await userRepo.findOne({ where: { resetTokenHash: hashVerificationToken(rawToken) } });
-    if (!user) throw AppError.badRequest("Invalid or expired password reset link");
-    if (!user.resetExpiresAt || user.resetExpiresAt < new Date()) {
-      throw AppError.badRequest("Password reset link has expired. Please request a new one.");
-    }
+    const taken = await takeUserToken(rawToken, UserTokenType.PASSWORD_RESET);
+    if (taken.status === "invalid") throw AppError.badRequest("Invalid password reset link");
+    if (taken.status === "expired") throw AppError.badRequest("Password reset link has expired. Please request a new one.");
+    const user = taken.user;
     user.passwordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
-    user.resetTokenHash = null;
-    user.resetExpiresAt = null;
-    await userRepo.save(user);
+    await AppDataSource.getRepository(User).save(user);
     // Invalidate all sessions issued before the reset.
     await AppDataSource.getRepository(RefreshToken).delete({ userId: user.id });
     return { id: user.id, email: user.email };
@@ -277,30 +255,14 @@ export const AuthService = {
   },
 };
 
-// --- Email verification helpers (token stored hashed, like refresh tokens) ---
+// --- Email token TTLs (single-use tokens live in the user_tokens table) ---
 
-function hashVerificationToken(rawToken: string): string {
-  return crypto.createHash("sha256").update(rawToken).digest("hex");
+function verificationTtlMs(): number {
+  return (config.emailVerificationExpiresHours || 24) * 60 * 60 * 1000;
 }
 
-function newVerificationToken(): { rawToken: string; tokenHash: string; expiresAt: Date } {
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const hours = config.emailVerificationExpiresHours || 24;
-  return {
-    rawToken,
-    tokenHash: hashVerificationToken(rawToken),
-    expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000),
-  };
-}
-
-function newPasswordResetToken(): { rawToken: string; tokenHash: string; expiresAt: Date } {
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const minutes = config.passwordResetExpiresMinutes || 60;
-  return {
-    rawToken,
-    tokenHash: hashVerificationToken(rawToken),
-    expiresAt: new Date(Date.now() + minutes * 60 * 1000),
-  };
+function passwordResetTtlMs(): number {
+  return (config.passwordResetExpiresMinutes || 60) * 60 * 1000;
 }
 
 async function sendVerificationEmailSafe(email: string, name: string, rawToken: string): Promise<void> {

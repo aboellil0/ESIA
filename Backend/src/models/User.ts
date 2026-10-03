@@ -29,22 +29,6 @@ export class User {
   @Expose()
   isVerified!: boolean;
 
-  @Column({ name: "verification_token_hash", type: "varchar", length: 255, nullable: true })
-  @Exclude()
-  verificationTokenHash!: string | null;
-
-  @Column({ name: "verification_expires_at", type: "timestamptz", nullable: true })
-  @Exclude()
-  verificationExpiresAt!: Date | null;
-
-  @Column({ name: "reset_token_hash", type: "varchar", length: 255, nullable: true })
-  @Exclude()
-  resetTokenHash!: string | null;
-
-  @Column({ name: "reset_expires_at", type: "timestamptz", nullable: true })
-  @Exclude()
-  resetExpiresAt!: Date | null;
-
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   @Expose()
   createdAt!: Date;

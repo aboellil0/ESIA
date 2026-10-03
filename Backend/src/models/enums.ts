@@ -34,6 +34,11 @@ export enum UserRole {
   ADMIN = "admin",
 }
 
+export enum UserTokenType {
+  EMAIL_VERIFICATION = "email_verification",
+  PASSWORD_RESET = "password_reset",
+}
+
 export enum PaymentMethod {
   VODAFONE_CASH = "vodafone_cash",
   ETISALAT_CASH = "etisalat_cash",
