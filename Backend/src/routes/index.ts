@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { protect, adminOnly, userOnly, adminOrUser } from "../middlewares/auth.middleware";
+import { protect, adminOnly, userOnly, adminOrUser, requireVerifiedUser } from "../middlewares/auth.middleware";
 import categoryRoutes from "./category.routes";
 import productRoutes from "./product.routes";
 import colorRoutes from "./color.routes";
@@ -20,4 +20,4 @@ router.use("/colors", colorRoutes);
 // router.get("/user/orders", protect, userOnly, (req,res)=>res.json({ok:true}));
 
 export default router;
-export { protect, adminOnly, userOnly, adminOrUser };
+export { protect, adminOnly, userOnly, adminOrUser, requireVerifiedUser };

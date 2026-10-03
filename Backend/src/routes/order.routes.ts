@@ -10,7 +10,7 @@ import {
   verifyPayment,
   updateOrderNotes,
 } from "../controllers/order.controller";
-import { protect, adminOnly, userOnly } from "../middlewares/auth.middleware";
+import { protect, adminOnly, userOnly, requireVerifiedUser } from "../middlewares/auth.middleware";
 import { upload } from "../middlewares/upload.middleware";
 import { processMedia } from "../middlewares/media.middleware";
 
@@ -22,8 +22,8 @@ router.post("/", upload.any(), processMedia, createOrder);
 router.get("/track/:orderNumber", trackOrder);
 
 // Authenticated user routes
-router.get("/my-orders", protect, userOnly, getUserOrders);
-router.get("/my-orders/:id", protect, userOnly, getUserOrderById);
+router.get("/my-orders", protect, userOnly, requireVerifiedUser, getUserOrders);
+router.get("/my-orders/:id", protect, userOnly, requireVerifiedUser, getUserOrderById);
 
 // Admin routes
 router.get("/", protect, adminOnly, getAllOrders);

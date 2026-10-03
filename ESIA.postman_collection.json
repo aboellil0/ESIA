@@ -288,7 +288,7 @@
                 "refresh"
               ]
             },
-            "description": "Public but requires valid refreshToken in body (NOT header). auth.controller.ts:28, auth.service.ts:91\nRotates token: old deleted, new pair returned. 401 if invalid/expired/revoked.\nTest script auto-updates {{accessToken}} and {{refreshToken}}."
+            "description": "Public but requires valid refreshToken in body (NOT header). auth.controller.ts:28, auth.service.ts:91\nRotates token: old deleted, new pair returned. 401 if invalid/expired/revoked.\n403 { code:\"EMAIL_NOT_VERIFIED\" } if the token belongs to an UNVERIFIED user — the stale session is revoked and no new tokens are issued (verify email first, then log in again).\nTest script auto-updates {{accessToken}} and {{refreshToken}}."
           },
           "response": []
         },
@@ -485,7 +485,7 @@
                 "me"
               ]
             },
-            "description": "Authenticated (any role - user or admin). auth.controller.ts:32\nRequires Bearer {{accessToken}} (JWT 15m). Returns current user profile with role.\n200 -> { success:true, data:{ user:{id,email,role:\"user\"|\"admin\",...} } }\n401 if no/invalid token."
+            "description": "Authenticated (any role - user or admin). auth.controller.ts:32\nRequires Bearer {{accessToken}} (JWT 15m). Returns current user profile with role.\n200 -> { success:true, data:{ user:{id,email,role:\"user\"|\"admin\",...} } }\n401 if no/invalid token. 403 { code:\"EMAIL_NOT_VERIFIED\" } if a USER token belongs to an unverified account (requireVerifiedUser; admins pass through). Same gate applies to cart POST /merge and orders GET /my-orders*."
           },
           "response": []
         },

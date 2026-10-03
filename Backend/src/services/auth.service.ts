@@ -221,6 +221,11 @@ export const AuthService = {
     if (stored.userId) {
       const user = await AppDataSource.getRepository(User).findOne({ where: { id: stored.userId } });
       if (!user) throw AppError.unauthorized("User not found");
+      if (!user.isVerified) {
+        // Never mint tokens for unverified accounts — revoke the stale session.
+        await AppDataSource.getRepository(RefreshToken).delete({ id: stored.id });
+        throw new AppError("Please verify your email before logging in. Check your inbox for the confirmation link.", 403, "EMAIL_NOT_VERIFIED");
+      }
       ownerId = user.id;
       role = UserRole.USER;
       email = user.email;

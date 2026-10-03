@@ -48,9 +48,11 @@ function DemoAuthPage() {
     setNeedsVerificationFor(null);
     try {
       const res = await registerApi({ name, email, password });
-      // Keep demo shell working: mirror the account locally (marked unverified until link clicked)
+      // Save credentials locally for later login, but do NOT start a session:
+      // the account is unverified and must confirm email + log in first.
       signUpDemoUser({ email, password, name });
-      setNotice(res?.message || "Registration successful. Please check your email to confirm your account.");
+      await signOut.signOut();
+      setNotice((res?.message || "Registration successful. Please check your email to confirm your account.") + " You must verify your email before you can log in.");
       setNeedsVerificationFor(email);
     } catch (err: any) {
       setError(getApiErrorMessage(err, "Registration failed."));

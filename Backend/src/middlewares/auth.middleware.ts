@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/AppError";
 import { UserRole } from "../models/enums";
+import { AppDataSource } from "../config/data-source";
+import { User } from "../models/User";
 
 export interface UserPayload {
   id: string;
@@ -72,6 +74,29 @@ export const isAdmin = adminOnly;
 
 export const userOnly = authorize(UserRole.USER);
 export const requireUser = userOnly;
+
+/**
+ * requireVerifiedUser — defense-in-depth behind `protect`.
+ * Admins pass through (no verification concept). Users must have
+ * isVerified=true, otherwise 403 EMAIL_NOT_VERIFIED and no access.
+ * Covers legacy/stale access tokens minted before verification.
+ */
+export const requireVerifiedUser = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) return next(AppError.unauthorized("Not authenticated"));
+    if (req.user.role !== UserRole.USER) return next();
+    const user = await AppDataSource.getRepository(User).findOne({ where: { id: Number(req.user.id) } });
+    if (!user) return next(AppError.unauthorized("User not found"));
+    if (!user.isVerified) {
+      return next(
+        new AppError("Please verify your email before using your account. Check your inbox for the confirmation link.", 403, "EMAIL_NOT_VERIFIED")
+      );
+    }
+    next();
+  } catch {
+    next(AppError.unauthorized("Not authenticated"));
+  }
+};
 
 export const adminOrUser = authorize(UserRole.ADMIN, UserRole.USER);
 export const allowBothRoles = adminOrUser;

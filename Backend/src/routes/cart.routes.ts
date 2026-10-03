@@ -7,7 +7,7 @@ import {
   clearCart,
   mergeCarts,
 } from "../controllers/cart.controller";
-import { protect, userOnly, adminOrUser } from "../middlewares/auth.middleware";
+import { protect, userOnly, adminOrUser, requireVerifiedUser } from "../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -19,6 +19,6 @@ router.delete("/items/:itemId", removeFromCart);
 router.delete("/", clearCart);
 
 // Authenticated user only - merge guest cart after login
-router.post("/merge", protect, userOnly, mergeCarts);
+router.post("/merge", protect, userOnly, requireVerifiedUser, mergeCarts);
 
 export default router;
