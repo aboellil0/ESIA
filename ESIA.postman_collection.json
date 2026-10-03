@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ESIA API",
-    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-25 - Added Orders (simplified flow)\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (/api/auth/me)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)\n- 06 Orders (/api/orders)",
+    "description": "ESIA Backend - Auto-generated Postman Collection v2.1\nGenerated: 2026-09-21\nUpdated: 2026-09-25 - Added Orders (simplified flow)\nUpdated: 2026-10-03 - Email verification via Brevo (register sends confirmation link; new verify-email GET+POST and resend-verification; login gated until verified)\n\nBase URL via nginx (docker): http://localhost\nDirect backend (dev): http://localhost:5000\n\nAuth: Bearer {{accessToken}} (JWT accessToken, 15m expiry)\nRefresh: {{refreshToken}} (7d, rotation)\nRate limit: /api/auth -> 10 req/min, /api/* -> 1000/15min\n\nFolders:\n- 01 Health & Root\n- 02 Auth Public (/api/auth)\n- 03 Auth Authenticated (/api/auth/me)\n- 04 Categories (/api/categories)\n- 05 Products (/api/products)\n- 06 Orders (/api/orders)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "esia-api-2026-09-21"
   },
@@ -29,6 +29,12 @@
       "value": "",
       "type": "string",
       "description": "Opaque refresh token - auto-set by login/refresh tests"
+    },
+    {
+      "key": "verificationToken",
+      "value": "",
+      "type": "string",
+      "description": "Raw email-verification token from the Brevo confirmation link - paste manually, used by verify-email requests"
     }
   ],
   "auth": {
@@ -163,7 +169,7 @@
     },
     {
       "name": "02 - Auth (/api/auth)",
-      "description": "All auth endpoints. Public: register, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58).",
+      "description": "All auth endpoints. Public: register, verify-email (GET+POST), resend-verification, login, refresh, logout. Authenticated: GET /me (any role), POST /admins (admin only). Rate-limited: 10 req/min (authLimiter in app.ts:58). Registration sends a Brevo confirmation email; login is blocked until the email is verified.",
       "item": [
         {
           "name": "POST /api/auth/register",
@@ -190,7 +196,7 @@
                 "register"
               ]
             },
-            "description": "Public. controller: auth.controller.ts:6, service: auth.service.ts:19\nRequires: name, email, password, phone optional.\nPassword policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces. Example: \"Password123!\"\n201 -> { success:true, data:{ id, name, email, phone } }\n400 if weak password, 409 if email exists. Email lowercased."
+            "description": "Public. controller: auth.controller.ts:register, service: auth.service.ts:register (+ mail.service.ts via Brevo)\nRequires: name, email, password, phone optional. Creates the user UNVERIFIED and sends a Brevo confirmation email with link $FRONTEND_URL/verify-email?token=... (token single-use, sha256-hashed in DB, expires in EMAIL_VERIFICATION_EXPIRES_HOURS, default 24h).\nPassword policy: >=8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special (!@#$%^&* etc.), no spaces. Example: \"Password123!\"\n201 -> { success:true, message:\"Registration successful. Please check your email...\", data:{ id, name, email, phone, isVerified:false, requiresVerification:true } }\n400 if weak password. 409 only if email already VERIFIED — re-registering an UNVERIFIED email re-sends a fresh link. Email lowercased.\nNext: copy the token from the Brevo email into {{verificationToken}}, verify via GET /api/auth/verify-email?token=..., then login."
           },
           "response": []
         },
@@ -233,7 +239,7 @@
                 "login"
               ]
             },
-            "description": "Public unified login (single endpoint). auth.controller.ts:12, auth.service.ts:39\nAccepts identifier|email|username + password. Checks Admin table first, then User table. Returns role accordingly.\n200 -> { accessToken (JWT 15m, role claim), refreshToken (opaque 7d), tokenExpiration, refreshTokenExpiration, deviceId, user:{id,name,email,role:\"user\"|\"admin\"} }\nTest script auto-saves tokens to collection variables."
+            "description": "Public unified login (single endpoint). auth.controller.ts:12, auth.service.ts:39\nAccepts identifier|email|username + password. Checks Admin table first, then User table. Returns role accordingly.\n200 -> { accessToken (JWT 15m, role claim), refreshToken (opaque 7d), tokenExpiration, refreshTokenExpiration, deviceId, user:{id,name,email,role:\"user\"|\"admin\"} }\n403 { code:\"EMAIL_NOT_VERIFIED\" } if a USER has not confirmed their email yet — verify first or use POST /api/auth/resend-verification to re-send the Brevo link. (Admins bypass verification.)\nTest script auto-saves tokens to collection variables."
           },
           "response": []
         },
@@ -306,6 +312,91 @@
               ]
             },
             "description": "Public, revokes refresh token. auth.controller.ts:34, auth.service.ts:134\nBody: { refreshToken }. If omitted, still 200 but nothing revoked. Always 200 { success:true, data:null }."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/verify-email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"token\": \"{{verificationToken}}\"\n}\n// Paste the raw token from the Brevo confirmation link ($FRONTEND_URL/verify-email?token=...) into {{verificationToken}}\n// Token is single-use, sha256-hashed in DB, expires in EMAIL_VERIFICATION_EXPIRES_HOURS (default 24h)"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-email"
+              ]
+            },
+            "description": "Public. Confirms the email address. controller: auth.controller.ts:verifyEmail, service: auth.service.ts:verifyEmail\nAccepts the token in body { token } OR as query ?token= (GET variant below — same handler).\n200 -> { success:true, message:\"Email verified successfully. You can now log in.\", data:{ id, name, email, isVerified:true } }\n400 if token missing/invalid/expired — request a new link via POST /api/auth/resend-verification.\nAlso available as /api/v1/auth/verify-email."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/auth/verify-email?token=",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email?token={{verificationToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-email"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{verificationToken}}",
+                  "description": "Raw token from the Brevo confirmation email link"
+                }
+              ]
+            },
+            "description": "Public. Same handler as POST /api/auth/verify-email but via query string — mirrors how the frontend /verify-email page consumes the Brevo email link.\n200 -> { success:true, message:\"Email verified successfully. You can now log in.\", data:{ id, name, email, isVerified:true } }\n400 if token missing/invalid/expired.\nAlso available as /api/v1/auth/verify-email?token=..."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/auth/resend-verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"email\": \"test@example.com\"\n}\n// Issues a FRESH token + expiry (previous link invalidated) and re-sends the Brevo confirmation email"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resend-verification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "resend-verification"
+              ]
+            },
+            "description": "Public. Re-sends the confirmation email. controller: auth.controller.ts:resendVerification, service: auth.service.ts:resendVerification\nBody: { email }. Generates a new token + expiry (old link invalidated) and sends a new Brevo email.\n200 -> { success:true, message:\"Verification email sent. Please check your inbox.\", data:{ email, requiresVerification:true } }\n400 if email already verified (just log in), 404 if no account with this email.\nAlso available as /api/v1/auth/resend-verification."
           },
           "response": []
         },

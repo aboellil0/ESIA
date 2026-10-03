@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, refresh, logout, me, createAdmin } from "../controllers/auth.controller";
+import { register, login, refresh, logout, me, createAdmin, verifyEmail, resendVerification } from "../controllers/auth.controller";
 import { protect, adminOnly } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -9,6 +9,9 @@ router.post("/register", register);
 router.post("/login", login);
 router.post("/refresh", refresh);
 router.post("/logout", logout);
+router.post("/verify-email", verifyEmail);
+router.get("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerification);
 
 // Authenticated
 router.get("/me", protect, me);

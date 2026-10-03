@@ -7,7 +7,19 @@ import { asyncHandler } from "../utils/asyncHandler";
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, phone } = req.body;
   const data = await AuthService.register({ name, email, password, phone });
-  res.status(201).json({ success: true, message: "Operation completed successfully", data, statusCode: 201 });
+  res.status(201).json({ success: true, message: "Registration successful. Please check your email to confirm your account.", data, statusCode: 201 });
+});
+
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const token = (req.query.token as string) || req.body.token;
+  const data = await AuthService.verifyEmail(token);
+  res.status(200).json({ success: true, message: "Email verified successfully. You can now log in.", data, statusCode: 200 });
+});
+
+export const resendVerification = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const data = await AuthService.resendVerification(email);
+  res.status(200).json({ success: true, message: "Verification email sent. Please check your inbox.", data, statusCode: 200 });
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {

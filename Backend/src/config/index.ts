@@ -10,6 +10,11 @@ interface Config {
   accessTokenSecret: string;
   accessTokenExpires: string;
   refreshTokenExpires: string;
+  brevoApiKey: string;
+  brevoSenderEmail: string;
+  brevoSenderName: string;
+  frontendUrl: string;
+  emailVerificationExpiresHours: number;
 }
 
 const config: Config = {
@@ -21,6 +26,13 @@ const config: Config = {
   accessTokenSecret: process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || "change_me_esia_access_secret_2026_very_long_random_key_32chars",
   accessTokenExpires: process.env.ACCESS_TOKEN_EXPIRES || "15m",
   refreshTokenExpires: process.env.REFRESH_TOKEN_EXPIRES || process.env.JWT_EXPIRES_IN || "7d",
+  brevoApiKey: process.env.BREVO_API_KEY || "",
+  brevoSenderEmail: process.env.BREVO_SENDER_EMAIL || "no-reply@esia.shop",
+  brevoSenderName: process.env.BREVO_SENDER_NAME || "ESIA",
+  frontendUrl: (process.env.FRONTEND_URL || "http://localhost:3000").split(",")[0].trim(),
+  emailVerificationExpiresHours: process.env.EMAIL_VERIFICATION_EXPIRES_HOURS
+    ? Number(process.env.EMAIL_VERIFICATION_EXPIRES_HOURS)
+    : 24,
 };
 
 export default config;

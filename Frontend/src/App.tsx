@@ -14,6 +14,7 @@ import AdminProducts from "./components/AdminProducts";
 import Checkout from "./components/Checkout";
 import Storefront from "./components/Storefront";
 import AuthPage from "./components/AuthPage";
+import VerifyEmail from "./components/VerifyEmail";
 import { getDemoUser } from "./lib/demoAuth";
 
 export type View =
@@ -292,6 +293,10 @@ function AppShell({
 
   if (!user && location.pathname === "/auth") {
     return <AuthPage />;
+  }
+
+  if (location.pathname === "/verify-email") {
+    return <VerifyEmail />;
   }
 
   if (!user && !isGuestMode && showWelcomeModal) {
@@ -597,6 +602,7 @@ function AppShell({
           element={<AdminProducts onNavigate={redirect} />}
         />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
