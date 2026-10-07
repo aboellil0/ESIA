@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import type { CartItem } from "../App";
 import { getApiErrorMessage } from "../lib/api";
+import { DEPOSIT_RATE, RECEIPT_MAX_BYTES, SHIPPING_FEE } from "../lib/storeConfig";
 
 interface Props {
   items: CartItem[];
@@ -30,7 +31,7 @@ interface Props {
 const transferNumber = import.meta.env.VITE_TRANSFER_NUMBER?.trim() ?? "";
 const transferAccountName =
   import.meta.env.VITE_TRANSFER_ACCOUNT_NAME?.trim() ?? "";
-const maxReceiptBytes = 3 * 1024 * 1024;
+const maxReceiptBytes = RECEIPT_MAX_BYTES;
 const inputClass =
   "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63]";
 
@@ -62,8 +63,8 @@ export default function Checkout({
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
     [items],
   );
-  const total = subtotal + (items.length ? 50 : 0);
-  const depositAmount = Math.round((total * 0.5 + Number.EPSILON) * 100) / 100;
+  const total = subtotal + (items.length ? SHIPPING_FEE : 0);
+  const depositAmount = Math.round((total * DEPOSIT_RATE + Number.EPSILON) * 100) / 100;
   const remainingAmount = Math.round((total - depositAmount + Number.EPSILON) * 100) / 100;
 
   const submit = async (event: FormEvent) => {
@@ -372,7 +373,7 @@ export default function Checkout({
                 />
               </label>
               <label className="text-sm sm:col-span-2">
-                العربون المطلوب (50% من الإجمالي)
+                العربون المطلوب ({Math.round(DEPOSIT_RATE * 100)}% من الإجمالي)
                 <input
                   type="number"
                   min="0"
@@ -441,7 +442,7 @@ export default function Checkout({
               </div>
               <div className="flex justify-between">
                 <span>الشحن</span>
-                <span>50 ج.م</span>
+                <span>{SHIPPING_FEE.toLocaleString()} ج.م</span>
               </div>
               <div className="flex justify-between text-lg font-bold">
                 <span>الإجمالي</span>

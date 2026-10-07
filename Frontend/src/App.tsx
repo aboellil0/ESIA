@@ -24,6 +24,7 @@ import { getApiErrorMessage } from "./lib/api";
 import { CategoriesProvider } from "./lib/categoryContext";
 import { cartService } from "./services/cart";
 import { ordersService } from "./services/orders";
+import { DEFAULT_PAYMENT_METHOD } from "./lib/storeConfig";
 
 export interface CartItem {
   variantKey: string;
@@ -272,7 +273,7 @@ function AppShell({
         size: item.size || undefined,
         colorId: item.colorId,
       }))));
-    formData.append("paymentMethod", "vodafone_cash");
+    formData.append("paymentMethod", DEFAULT_PAYMENT_METHOD);
     formData.append("senderName", payload.senderName);
     formData.append("senderNumber", payload.senderNumber);
     formData.append("paymentAmount", String(payload.paymentAmount));

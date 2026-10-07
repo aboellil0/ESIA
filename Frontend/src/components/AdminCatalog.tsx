@@ -226,7 +226,7 @@ export default function AdminCatalog({ onNavigate, onLogout }: { onNavigate: (vi
                   </div>
                 ))}</div>
               )}
-              <p className="mt-4 text-xs leading-6 text-gray-500">إدارة ألوان المنتج عند الإنشاء تستخدم لوحة ProductColor التي يعيدها backend ضمن المنتجات الحالية.</p>
+              <p className="mt-4 text-xs leading-6 text-gray-500">إنشاء المنتجات يستخدم لوحة الألوان العامة (/colors) — وتُقبل أيضاً ألوان المنتجات الحالية.</p>
             </section>
 
             <section className="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2" style={{ border: "1px solid var(--line)" }}>
