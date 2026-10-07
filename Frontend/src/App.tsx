@@ -263,7 +263,12 @@ function AppShell({
     formData.append("totalAmount", String(payload.total));
     formData.append("items", JSON.stringify(payload.items.map((item) => ({
         productId: Number(item.productId),
+        productName: item.name,
+        name: item.name,
+        unitPrice: item.price,
+        price: item.price,
         quantity: item.qty,
+        qty: item.qty,
         size: item.size || undefined,
         colorId: item.colorId,
       }))));

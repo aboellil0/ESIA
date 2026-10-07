@@ -3,6 +3,7 @@ import { Cart } from "../models/Cart";
 import { CartItem } from "../models/CartItem";
 import { Product } from "../models/Product";
 import { Color } from "../models/Color";
+import { ProductColor } from "../models/ProductColor";
 import { ProductSize } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import crypto from "crypto";
@@ -119,9 +120,15 @@ class CartServiceImpl {
     }
 
     if (input.colorId) {
-      const color = await AppDataSource.getRepository(Color).findOne({ where: { id: input.colorId } });
-      if (!color) {
-        throw new AppError("Color not found", 404);
+      // colorId may come from the global palette (colors table, used by the
+      // storefront) or from a product's own colors (product_colors table).
+      // Accept either so frontend/backend never disagree with a 404.
+      const paletteColor = await AppDataSource.getRepository(Color).findOne({ where: { id: input.colorId } });
+      if (!paletteColor) {
+        const productColor = await AppDataSource.getRepository(ProductColor).findOne({ where: { id: input.colorId } });
+        if (!productColor) {
+          throw new AppError("Color not found", 404);
+        }
       }
     }
 
@@ -222,6 +229,17 @@ class CartServiceImpl {
               nameAr: color.nameAr,
               hexCode: color.hexCode,
             };
+          } else {
+            // Fallback: id may reference product_colors instead of the palette
+            const productColor = await AppDataSource.getRepository(ProductColor).findOne({ where: { id: item.colorId } });
+            if (productColor) {
+              colorData = {
+                id: productColor.id,
+                nameEn: productColor.nameEn,
+                nameAr: productColor.nameAr,
+                hexCode: productColor.hexCode,
+              };
+            }
           }
         }
 

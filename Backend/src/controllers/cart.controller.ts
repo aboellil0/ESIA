@@ -51,7 +51,7 @@ export const updateCartItem = asyncHandler(async (req: Request, res: Response) =
   const itemId = Number(req.params.itemId);
   const { quantity } = req.body;
 
-  if (!quantity || quantity < 0) {
+  if (quantity === undefined || quantity === null || quantity < 0) {
     throw new AppError("Quantity is required and must be >= 0", 400);
   }
 

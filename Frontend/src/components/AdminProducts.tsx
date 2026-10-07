@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { getApiErrorMessage } from "../lib/api";
 import { useCategories } from "../lib/categoryContext";
 import { productsService } from "../services/products";
+import { colorsService } from "../services/colors";
 
 type PaletteColor = { id: number; nameEn: string; nameAr: string; hexCode: string };
 type ProductImage = { id: number; imageUrl: string; sortOrder: number; isMain: boolean };
@@ -41,23 +42,30 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [globalPalette, setGlobalPalette] = useState<PaletteColor[]>([]);
 
   const palette = useMemo(() => {
+    // Primary source: global /colors palette (works even with zero products).
+    // Fallback: colors found on existing products (legacy/clone flow).
+    const source = globalPalette.length ? globalPalette : products.flatMap((product) => product.colors ?? []);
     const unique = new Map<string, PaletteColor>();
-    for (const product of products) {
-      for (const color of product.colors ?? []) {
-        const key = color.hexCode.toLowerCase() + "|" + color.nameEn.toLowerCase();
-        if (!unique.has(key)) unique.set(key, color);
-      }
+    for (const color of source) {
+      if (!color || !color.hexCode || !color.nameEn) continue;
+      const key = String(color.hexCode).toLowerCase() + "|" + String(color.nameEn).toLowerCase();
+      if (!unique.has(key)) unique.set(key, color);
     }
     return [...unique.values()];
-  }, [products]);
+  }, [products, globalPalette]);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await productsService.list();
+      const [data, paletteColors] = await Promise.all([
+        productsService.list(),
+        colorsService.list().catch(() => [] as PaletteColor[]),
+      ]);
+      setGlobalPalette(Array.isArray(paletteColors) ? paletteColors : []);
       const rows = Array.isArray(data) ? data as ProductRow[] : [];
       setProducts(rows);
       if (selected) {

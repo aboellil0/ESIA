@@ -4,6 +4,7 @@ import { OrderItem } from "../models/OrderItem";
 import { User } from "../models/User";
 import { Admin } from "../models/Admin";
 import { Color } from "../models/Color";
+import { Product } from "../models/Product";
 import { OrderStatus } from "../models/enums";
 import { PaymentMethod, PaymentStatus } from "../models/enums";
 import { AppError } from "../utils/AppError";
@@ -93,17 +94,30 @@ class OrderServiceImpl {
 
       const savedOrder = await manager.save(order);
 
-      const orderItems = input.items.map((item) => {
+      // Fallback: older clients may send only { productId, quantity/size/colorId }.
+      // Fill missing productName/unitPrice/quantity from the Product row so the
+      // NOT NULL columns never receive undefined.
+      const productRepoTx = manager.getRepository(Product);
+      const orderItems: OrderItem[] = [];
+      for (const item of input.items) {
+        let productName: string | undefined = (item as any).productName ?? (item as any).name;
+        let unitPrice: number | undefined = (item as any).unitPrice ?? (item as any).price;
+        if (productName === undefined || unitPrice === undefined) {
+          const product = await productRepoTx.findOne({ where: { id: Number((item as any).productId) } });
+          if (!product) throw new AppError(`Product with id ${(item as any).productId} not found`, 404);
+          productName ??= product.name;
+          unitPrice ??= Number(product.price);
+        }
         const orderItem = new OrderItem();
         orderItem.orderId = savedOrder.id;
-        orderItem.productId = item.productId;
-        orderItem.productName = item.productName;
-        orderItem.unitPrice = item.unitPrice;
-        orderItem.colorId = item.colorId ?? null;
-        orderItem.size = (item.size as any) ?? null;
-        orderItem.quantity = item.quantity;
-        return orderItem;
-      });
+        orderItem.productId = (item as any).productId;
+        orderItem.productName = productName!;
+        orderItem.unitPrice = Number(unitPrice);
+        orderItem.colorId = (item as any).colorId ?? null;
+        orderItem.size = ((item as any).size as any) ?? null;
+        orderItem.quantity = (item as any).quantity ?? (item as any).qty ?? 1;
+        orderItems.push(orderItem);
+      }
 
       await manager.save(orderItems);
 

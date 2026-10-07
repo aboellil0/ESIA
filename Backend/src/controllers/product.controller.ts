@@ -6,6 +6,7 @@ import { ProductColor } from "../models/ProductColor";
 import { ProductSize } from "../models/ProductSize";
 import { ProductImage } from "../models/ProductImage";
 import { Category } from "../models/Category";
+import { Color as PaletteColor } from "../models/Color";
 import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -415,14 +416,25 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
 
  const savedProduct = await productRepo.save(product);
 
- // colors — resolve by IDs (no DB change): fetch palette rows and clone for new product
- const colorIds: number[] = data.colors as number[];
- const paletteColors = await colorRepo.find({ where: { id: In(colorIds) } });
- if (paletteColors.length !== colorIds.length) {
- const foundIds = new Set(paletteColors.map((pc) => pc.id));
- const missing = colorIds.filter((id) => !foundIds.has(id));
- throw AppError.badRequest(`colors contains non-existent ProductColor IDs: [${missing.join(", ")}]`);
- }
+  // colors — resolve by IDs (no DB change): fetch palette rows and clone for new product
+  // Accepts IDs from either the global palette (colors table, used by Admin UI)
+  // or existing product_colors rows (legacy/clone flow).
+  const colorIds: number[] = data.colors as number[];
+  const paletteRepo = queryRunner.manager.getRepository(PaletteColor);
+  const [globalColors, legacyColors] = await Promise.all([
+    paletteRepo.find({ where: { id: In(colorIds) } }),
+    colorRepo.find({ where: { id: In(colorIds) } }),
+  ]);
+  const combinedPalette = [...globalColors.map((c: any) => ({ id: c.id, nameEn: c.nameEn, nameAr: c.nameAr, hexCode: c.hexCode })), ...legacyColors];
+  // de-dupe by id (an id could theoretically exist in both tables)
+  const seenPalette = new Map<number, any>();
+  for (const pc of combinedPalette) if (!seenPalette.has(pc.id)) seenPalette.set(pc.id, pc);
+  const paletteColors = [...seenPalette.values()];
+  if (paletteColors.length !== colorIds.length) {
+  const foundIds = new Set(paletteColors.map((pc) => pc.id));
+  const missing = colorIds.filter((id) => !foundIds.has(id));
+  throw AppError.badRequest(`colors contains non-existent Color IDs: [${missing.join(", ")}] (check /colors palette)`);
+  }
  // validate uniqueness of nameEn/nameAr/hexCode among selected palette (pre-empt DB unique violation per product)
  {
  const seenEn = new Set<string>();

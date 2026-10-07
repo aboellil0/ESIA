@@ -17,6 +17,6 @@ router.post("/reset-password", resetPassword);
 
 // Authenticated
 router.get("/me", protect, requireVerifiedUser, me);
-router.post("/admins", createAdmin);
+router.post("/admins", protect, adminOnly, createAdmin);
 
 export default router;
