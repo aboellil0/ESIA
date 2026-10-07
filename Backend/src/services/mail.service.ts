@@ -45,15 +45,27 @@ export async function sendEmailViaBrevo(input: SendEmailInput): Promise<void> {
     const body = await res.text().catch(() => "");
     throw new Error(`Brevo send failed (${res.status}): ${body}`);
   }
+
+  // Traceability: Brevo returns a messageId on success — log it so deliveries
+  // can be matched in the Brevo dashboard when users report missing mail.
+  try {
+    const payload: any = await res.json();
+    if (payload?.messageId) {
+      // eslint-disable-next-line no-console
+      console.log(`[mail] sent to ${to} messageId=${payload.messageId}`);
+    }
+  } catch {
+    // Non-JSON success body — nothing to trace.
+  }
 }
 
 export function buildVerificationUrl(rawToken: string): string {
-  const base = config.frontendUrl.replace(/\/$/, "");
+  const base = config.publicUrl.replace(/\/$/, "");
   return `${base}/verify-email?token=${encodeURIComponent(rawToken)}`;
 }
 
 export function buildPasswordResetUrl(rawToken: string): string {
-  const base = config.frontendUrl.replace(/\/$/, "");
+  const base = config.publicUrl.replace(/\/$/, "");
   return `${base}/reset-password?token=${encodeURIComponent(rawToken)}`;
 }
 

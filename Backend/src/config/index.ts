@@ -14,6 +14,7 @@ interface Config {
   brevoSenderEmail: string;
   brevoSenderName: string;
   frontendUrl: string;
+  publicUrl: string;
   emailVerificationExpiresHours: number;
   passwordResetExpiresMinutes: number;
 }
@@ -31,6 +32,9 @@ const config: Config = {
   brevoSenderEmail: process.env.BREVO_SENDER_EMAIL || "no-reply@esia.shop",
   brevoSenderName: process.env.BREVO_SENDER_NAME || "ESIA",
   frontendUrl: (process.env.FRONTEND_URL || "http://localhost:3000").split(",")[0].trim(),
+  // Public base URL embedded in emailed links (verify/reset). Must be reachable
+  // by the recipient — localhost only works when browsing on the server itself.
+  publicUrl: (process.env.PUBLIC_URL || process.env.FRONTEND_URL || "http://localhost:3000").split(",")[0].trim(),
   emailVerificationExpiresHours: process.env.EMAIL_VERIFICATION_EXPIRES_HOURS
     ? Number(process.env.EMAIL_VERIFICATION_EXPIRES_HOURS)
     : 24,
