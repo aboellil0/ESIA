@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 import { AppDataSource } from "../config/data-source";
 
 async function reset() {

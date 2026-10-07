@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 import { AppDataSource } from "../config/data-source";
 import { Category } from "../models/Category";
 import { Product } from "../models/Product";
