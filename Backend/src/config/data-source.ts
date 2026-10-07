@@ -13,6 +13,8 @@ import { UserToken } from "../models/UserToken";
 import { Admin } from "../models/Admin";
 import { Order } from "../models/Order";
 import { OrderItem } from "../models/OrderItem";
+import { Cart } from "../models/Cart";
+import { CartItem } from "../models/CartItem";
 import { Payment } from "../models/Payment";
 import { RefreshToken } from "../models/RefreshToken";
 
@@ -26,7 +28,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DATABASE_URL ? undefined : (process.env.PGDATABASE || "esia_db"),
   synchronize: false,
   logging: process.env.NODE_ENV === "development" ? false : false,
-  entities: [Category, Product, ProductImage, ProductColor, ProductSize, Color, User, UserToken, Admin, Order, OrderItem, Payment, RefreshToken],
+  entities: [Category, Product, ProductImage, ProductColor, ProductSize, Color, User, UserToken, Admin, Order, OrderItem, Payment, RefreshToken, Cart, CartItem],
   migrations: [__dirname + "/../db/migrations/*.{ts,js}"],
   subscribers: [],
   // Disable SSL for internal Docker postgres (does not support SSL); enable only when explicitly requested via DB_SSL=true

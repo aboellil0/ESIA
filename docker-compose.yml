@@ -51,7 +51,9 @@ services:
     build:
       context: ./Frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_TRANSFER_NUMBER: ${VITE_TRANSFER_NUMBER:-}
+        VITE_TRANSFER_ACCOUNT_NAME: ${VITE_TRANSFER_ACCOUNT_NAME:-}
     container_name: esia_frontend
     restart: always
     depends_on:
