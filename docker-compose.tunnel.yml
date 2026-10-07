@@ -1,0 +1,105 @@
+# ESIA public stack via Cloudflare Tunnel (Zero Trust).
+# Standalone file - the existing docker-compose.yml / nginx.conf / .env are untouched.
+# Shares the pg_data + uploads_data volumes, so all data carries over.
+# Run with: docker compose -f docker-compose.tunnel.yml --env-file .env.tunnel up -d --build
+# Stop the local-only stack first: docker compose down   (keeps volumes! never use -v here)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: esia_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - db_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./Backend
+    container_name: esia_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=${POSTGRES_DB}
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL}
+      - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-ESIA}
+      - EMAIL_VERIFICATION_EXPIRES_HOURS=${EMAIL_VERIFICATION_EXPIRES_HOURS:-24}
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - esia_net
+      - db_net
+    expose:
+      - "5000"
+
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_TRANSFER_NUMBER: ${VITE_TRANSFER_NUMBER:-}
+        VITE_TRANSFER_ACCOUNT_NAME: ${VITE_TRANSFER_ACCOUNT_NAME:-}
+    container_name: esia_frontend
+    restart: always
+    depends_on:
+      - backend
+    expose:
+      - "3000"
+    networks:
+      - esia_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: esia_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.tunnel.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - esia_net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: esia_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    networks:
+      - esia_net
+
+volumes:
+  pg_data:
+  uploads_data:
+
+networks:
+  esia_net:
+    driver: bridge
+  db_net:
+    driver: bridge
