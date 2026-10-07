@@ -110,6 +110,14 @@ api.interceptors.response.use(
   },
 );
 
+export function getApiErrorCode(error: unknown): string | null {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as any;
+    if (typeof payload?.code === "string") return payload.code;
+  }
+  return null;
+}
+
 export function getApiErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
     const payload = error.response?.data as any;

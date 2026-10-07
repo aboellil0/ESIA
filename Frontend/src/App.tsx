@@ -15,6 +15,7 @@ import AdminCatalog from "./components/AdminCatalog";
 import Checkout from "./components/Checkout";
 import Storefront from "./components/Storefront";
 import AuthPage from "./components/AuthPage";
+import CheckEmail, { clearPendingEmail, rememberPendingEmail } from "./components/CheckEmail";
 import MyOrders from "./components/MyOrders";
 import TrackOrder from "./components/TrackOrder";
 import EmailVerification from "./components/EmailVerification";
@@ -158,6 +159,7 @@ function AppShell({
 
   useEffect(() => {
     if (isLoading || !user || location.pathname !== "/auth") return;
+    clearPendingEmail();
     const requestedPath = (location.state as { from?: string } | null)?.from;
     const canReturnToRequestedPath = requestedPath && (
       user.role === "admin"
@@ -177,6 +179,12 @@ function AppShell({
     else if (view === "product") target = value ? "/product/" + encodeURIComponent(value) : "/";
     else if (view === "checkout") target = "/checkout";
     else if (view === "auth") target = "/auth";
+    else if (view === "check-email") {
+      if (value) rememberPendingEmail(value);
+      navigate("/check-email", value ? { state: { email: value } } : undefined);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     else if (view === "my-orders") target = "/my-orders";
     else if (view === "track-order") target = value ? "/track-order/" + encodeURIComponent(value) : "/track-order";
     else if (view === "admin-orders") target = "/admin-orders";
@@ -315,7 +323,8 @@ function AppShell({
       <Route path="/checkout" element={<Checkout items={cartItems} loading={cartLoading} cartError={cartError} onRetryCart={loadCart} onNavigate={redirect} onRemoveItem={removeItem} onUpdateQty={updateItemQty} onClearCart={clearCart} onPlaceOrder={placeOrder} />} />
       <Route path="/track-order" element={<TrackOrder onNavigate={redirect} />} />
       <Route path="/track-order/:orderNumber" element={<TrackedOrderRoute onNavigate={redirect} />} />
-      <Route path="/auth" element={<AuthPage user={user} isLoading={isLoading} signIn={signIn} signUp={signUp} signOut={signOut} error={error} onContinueAsGuest={() => navigate("/", { replace: true })} />} />
+      <Route path="/auth" element={<AuthPage user={user} isLoading={isLoading} signIn={signIn} signUp={signUp} signOut={signOut} error={error} onContinueAsGuest={() => navigate("/", { replace: true })} onRequireVerification={(email) => redirect("check-email", email)} />} />
+      <Route path="/check-email" element={<CheckEmail />} />
       <Route path="/verify-email" element={<EmailVerification />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/my-orders" element={<ProtectedRoute user={user} isLoading={isLoading} role="user"><MyOrders onNavigate={redirect} /></ProtectedRoute>} />

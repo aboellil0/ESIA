@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getApiErrorMessage } from "./api";
+import { getApiErrorCode, getApiErrorMessage } from "./api";
 import { authService } from "../services/auth";
 
 export type AppUser = {
@@ -114,7 +114,8 @@ export function useAuthSession() {
         setError(null);
 
         try {
-          const payload = await authService.login({ email: normalizeEmail(email), password });
+          const normalized = normalizeEmail(email);
+          const payload = await authService.login({ email: normalized, password });
           const backendUser = normalizeBackendUser(payload?.user ?? payload);
 
           if (!backendUser) {
@@ -125,6 +126,11 @@ export function useAuthSession() {
           setUser(backendUser);
           return backendUser;
         } catch (err) {
+          // Unverified accounts cannot receive tokens: send them to the
+          // check-email page instead of showing a dead-end error.
+          if (getApiErrorCode(err) === "EMAIL_NOT_VERIFIED") {
+            return { unverified: true, email: normalizeEmail(email) } as any;
+          }
           const message = getApiErrorMessage(err) || "Authentication failed.";
           setError({ message });
           return undefined;

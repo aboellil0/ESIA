@@ -10,13 +10,14 @@ export type AuthPageProps = {
   signOut: { signOut: () => Promise<void> };
   error: { message: string } | null;
   onContinueAsGuest: () => void;
+  onRequireVerification: (email: string) => void;
 };
 
 type FormMode = "signin" | "signup" | "forgot" | "resend";
 const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
 const inputClass = "w-full rounded-xl border border-[#ead5db] bg-[#fffaf9] px-4 py-3 text-sm text-[#382530] outline-none focus:border-[#9a4f63]";
 
-export default function AuthPage({ user, isLoading, signIn, signUp, signOut, error, onContinueAsGuest }: AuthPageProps) {
+export default function AuthPage({ user, isLoading, signIn, signUp, signOut, error, onContinueAsGuest, onRequireVerification }: AuthPageProps) {
   const [mode, setMode] = useState<FormMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,11 +54,13 @@ export default function AuthPage({ user, isLoading, signIn, signUp, signOut, err
         const result = await signUp.emailPassword({ email: normalizedEmail, password, name: name.trim() || undefined, phone: phone.trim() || undefined });
         if (result) {
           setPassword("");
-          setMode("resend");
-          setNotice("تم إنشاء الحساب. افتحي رسالة تأكيد البريد قبل تسجيل الدخول.");
+          onRequireVerification(normalizedEmail);
         }
       } else {
-        await signIn.emailPassword({ email: normalizedEmail, password });
+        const result = await signIn.emailPassword({ email: normalizedEmail, password });
+        if (result && (result as any).unverified) {
+          onRequireVerification((result as any).email || normalizedEmail);
+        }
       }
     } catch (submitError) {
       setActionError(getApiErrorMessage(submitError));
