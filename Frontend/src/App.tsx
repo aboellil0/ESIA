@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -11,614 +11,322 @@ import {
 import ProductDetail from "./components/ProductDetail";
 import AdminOrders from "./components/AdminOrders";
 import AdminProducts from "./components/AdminProducts";
+import AdminCatalog from "./components/AdminCatalog";
 import Checkout from "./components/Checkout";
 import Storefront from "./components/Storefront";
 import AuthPage from "./components/AuthPage";
-import VerifyEmail from "./components/VerifyEmail";
+import MyOrders from "./components/MyOrders";
+import TrackOrder from "./components/TrackOrder";
+import EmailVerification from "./components/EmailVerification";
 import ResetPassword from "./components/ResetPassword";
-import { getDemoUser } from "./lib/demoAuth";
-
-export type View =
-  | "home"
-  | "dresses"
-  | "bags"
-  | "accessories"
-  | "story"
-  | "product"
-  | "checkout"
-  | "auth"
-  | "admin-orders"
-  | "admin-products";
+import { useAuthSession } from "./lib/authSession";
+import { getApiErrorMessage } from "./lib/api";
+import { CategoriesProvider } from "./lib/categoryContext";
+import { cartService } from "./services/cart";
+import { ordersService } from "./services/orders";
 
 export interface CartItem {
   variantKey: string;
+  backendItemId: number;
   productId: string;
   name: string;
   price: number;
   size: string;
   color: string;
+  colorNameEn: string;
+  colorNameAr: string;
+  colorHex: string;
+  colorId?: number;
   image: string;
   qty: number;
 }
 
-export interface OrderItemSummary {
-  name: string;
-  color: string;
-  size: string;
-  qty: number;
+type AddCartItem = Omit<CartItem, "variantKey" | "backendItemId">;
+
+function mapCart(data: any): CartItem[] {
+  if (data?.guestToken) localStorage.setItem("esia-guest-token", String(data.guestToken));
+  if (!Array.isArray(data?.items)) return [];
+  return data.items.map((item: any) => ({
+    variantKey: String(item.id),
+    backendItemId: Number(item.id),
+    productId: String(item.productId),
+    name: String(item.productName ?? item.product?.name ?? "Product"),
+    price: Number(item.unitPrice ?? item.product?.price ?? 0),
+    size: String(item.size ?? ""),
+    color: String(item.color?.nameAr ?? item.color?.nameEn ?? "—"),
+    colorNameEn: String(item.color?.nameEn ?? ""),
+    colorNameAr: String(item.color?.nameAr ?? ""),
+    colorHex: String(item.color?.hexCode ?? ""),
+    colorId: item.colorId ? Number(item.colorId) : undefined,
+    image: String(item.productImage ?? item.product?.mainImageUrl ?? ""),
+    qty: Number(item.quantity ?? 0),
+  }));
 }
-
-export interface Order {
-  id: string;
-  time: string;
-  customer: string;
-  phone: string;
-  items: OrderItemSummary[];
-  total: number;
-  status: string;
-  receiptImage: string;
-}
-
-const makeReceiptArt = (label: string, start: string, end: string) =>
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="${start}"/>
-          <stop offset="100%" stop-color="${end}"/>
-        </linearGradient>
-      </defs>
-      <rect width="900" height="600" fill="url(#g)"/>
-      <rect x="80" y="80" width="740" height="440" rx="18" fill="rgba(255,255,255,0.12)"/>
-      <text x="50%" y="48%" text-anchor="middle" fill="#fff" font-size="40" font-family="Segoe UI, Arial, sans-serif" font-weight="700">ESIA</text>
-      <text x="50%" y="58%" text-anchor="middle" fill="#fff" font-size="28" font-family="Segoe UI, Arial, sans-serif">${label}</text>
-    </svg>
-  `)}`;
-
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: "ESIA-2026-000482",
-    time: "منذ 12 دقيقة",
-    customer: "سارة أحمد",
-    phone: "+201012345678",
-    items: [{ name: "Rosalind Puff Dress", color: "وردي", size: "M", qty: 1 }],
-    total: 760,
-    status: "pending",
-    receiptImage: makeReceiptArt("إيصال الطلب", "#f4dcd8", "#9c5b66"),
-  },
-  {
-    id: "ESIA-2026-000481",
-    time: "منذ 40 دقيقة",
-    customer: "مروة سامي",
-    phone: "+201098765432",
-    items: [
-      { name: "Meadow Tiered Dress", color: "كاكي", size: "L", qty: 1 },
-      { name: "Aria Bow Suit", color: "عاجي", size: "S", qty: 1 },
-    ],
-    total: 1550,
-    status: "pending",
-    receiptImage: makeReceiptArt("إيصال الطلب", "#e5d3d2", "#7c5d54"),
-  },
-  {
-    id: "ESIA-2026-000480",
-    time: "منذ ساعتين",
-    customer: "ندى حسن",
-    phone: "+201122334455",
-    items: [
-      { name: "Elara Structured Abaya", color: "أسود", size: "M", qty: 1 },
-    ],
-    total: 1000,
-    status: "in_progress",
-    receiptImage: makeReceiptArt("إيصال الطلب", "#dfe6de", "#4b5d57"),
-  },
-  {
-    id: "ESIA-2026-000479",
-    time: "أمس، 9:14 م",
-    customer: "ياسمين طارق",
-    phone: "+201234567890",
-    items: [{ name: "Noor Maxi Dress", color: "وردي", size: "L", qty: 2 }],
-    total: 1440,
-    status: "shipped",
-    receiptImage: makeReceiptArt("إيصال الطلب", "#f7e2d2", "#b0895d"),
-  },
-];
-
-const STORE_VIEWS: View[] = [
-  "home",
-  "dresses",
-  "bags",
-  "accessories",
-  "story",
-  "product",
-];
-
-const getViewFromPath = (pathname: string): View => {
-  switch (pathname) {
-    case "/":
-      return "home";
-    case "/dresses":
-      return "dresses";
-    case "/bags":
-      return "bags";
-    case "/accessories":
-      return "accessories";
-    case "/story":
-      return "story";
-    case "/checkout":
-      return "checkout";
-    case "/auth":
-      return "auth";
-    case "/admin-orders":
-      return "admin-orders";
-    case "/admin-products":
-      return "admin-products";
-    default:
-      if (pathname.startsWith("/product/")) return "product";
-      return "home";
-  }
-};
-
-const getRouteTarget = (view: string, productId?: string) => {
-  switch (view) {
-    case "home":
-      return "/";
-    case "dresses":
-      return "/dresses";
-    case "bags":
-      return "/bags";
-    case "accessories":
-      return "/accessories";
-    case "story":
-      return "/story";
-    case "product":
-      return productId ? `/product/${encodeURIComponent(productId)}` : "/";
-    case "checkout":
-      return "/checkout";
-    case "auth":
-      return "/auth";
-    case "admin-orders":
-      return "/admin-orders";
-    case "admin-products":
-      return "/admin-products";
-    default:
-      return "/";
-  }
-};
 
 function ProductRoute({
   cart,
   onAddToCart,
-  wishlist,
-  onToggleWishlist,
   onNavigate,
+  showGuestSignIn,
 }: {
   cart: number;
-  onAddToCart: (item: Omit<CartItem, "variantKey"> & { qty: number }) => void;
-  wishlist: boolean;
-  onToggleWishlist: () => void;
-  onNavigate: (v: string, productId?: string) => void;
+  onAddToCart: (item: AddCartItem) => Promise<void>;
+  onNavigate: (view: string, value?: string) => void;
+  showGuestSignIn: boolean;
 }) {
-  const { productId = "rogeena" } = useParams();
-
-  return (
-    <ProductDetail
-      key={productId}
-      productId={productId}
-      onNavigate={onNavigate}
-      cart={cart}
-      onAddToCart={onAddToCart}
-      wishlist={wishlist}
-      onToggleWishlist={onToggleWishlist}
-    />
-  );
+  const { productId } = useParams();
+  if (!productId) return <Navigate to="/" replace />;
+  return <ProductDetail key={productId} productId={productId} onNavigate={onNavigate} cart={cart} onAddToCart={onAddToCart} showGuestSignIn={showGuestSignIn} />;
 }
 
-function DemoAppShell() {
-  const demoUser = getDemoUser();
-  const signOut = {
-    signOut: async () => {
-      localStorage.removeItem("esia-demo-auth-user");
-      window.location.reload();
-    },
-  };
+function CategoryRoute(props: Omit<ComponentProps<typeof Storefront>, "view" | "categorySlug">) {
+  const { slug } = useParams();
+  return <Storefront {...props} view="category" categorySlug={slug} />;
+}
 
-  return <AppShell user={demoUser} isLoading={false} signOut={signOut} />;
+function TrackedOrderRoute({ onNavigate }: { onNavigate: (view: string, value?: string) => void }) {
+  const { orderNumber } = useParams();
+  return <TrackOrder key={orderNumber ?? "lookup"} initialOrderNumber={orderNumber} onNavigate={onNavigate} />;
+}
+
+function ProtectedRoute({ user, isLoading, role, children }: { user: any; isLoading: boolean; role?: "user" | "admin"; children: ReactNode }) {
+  const location = useLocation();
+  if (isLoading) return <main className="grid min-h-screen place-items-center">جارٍ التحقق من الجلسة...</main>;
+  if (!user) return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+  if (role && user.role !== role) return <Navigate to={user.role === "admin" ? "/admin-orders" : "/"} replace />;
+  return <>{children}</>;
+}
+
+function AppAuthShell() {
+  const auth = useAuthSession();
+  return <AppShell {...auth} />;
 }
 
 function AppShell({
   user,
   isLoading,
+  signIn,
+  signUp,
   signOut,
+  error,
 }: {
   user: any;
   isLoading: boolean;
+  signIn: { emailPassword: (input: { email: string; password: string }) => Promise<any> };
+  signUp: { emailPassword: (input: { email: string; password: string; name?: string; phone?: string }) => Promise<any> };
   signOut: { signOut: () => Promise<void> };
+  error: { message: string } | null;
 }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [wishlist, setWishlist] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
-  const [isGuestMode, setIsGuestMode] = useState(false);
+  const [cartLoading, setCartLoading] = useState(true);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const guestCartItems = useRef<CartItem[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const ADMIN_EMAIL = "admin@yourstore.com";
-  const isAdminUser = (email?: string | null) => {
-    if (!email) return false;
-    const normalized = email.toLowerCase();
-    return (
-      normalized === ADMIN_EMAIL.toLowerCase() || normalized.includes("admin")
-    );
-  };
-
-  useEffect(() => {
-    if (
-      user &&
-      isAdminUser(user.email) &&
-      !["/admin-orders", "/admin-products", "/auth"].includes(location.pathname)
-    ) {
-      navigate("/admin-orders");
-    }
-  }, [navigate, user, location.pathname]);
-
-  const view = getViewFromPath(location.pathname);
-  const cartCount = cartItems.reduce((sum, item) => sum + item.qty, 0);
-  const isAdmin = isAdminUser(user?.email);
-
-  useEffect(() => {
-    if (user) {
-      setShowWelcomeModal(false);
-      setIsGuestMode(false);
-    }
-  }, [user]);
-
-  if (isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fff8f7] text-[#382530]">
-        <p className="text-lg font-medium">Loading...</p>
-      </main>
-    );
-  }
-
-  const handleGuestContinue = () => {
-    setIsGuestMode(true);
-    setShowWelcomeModal(false);
-    navigate("/");
-  };
-
-  const handleOpenAuth = () => {
-    setIsGuestMode(false);
-    setShowWelcomeModal(false);
-    navigate("/auth");
-  };
-
-  if (!user && location.pathname === "/auth") {
-    return <AuthPage />;
-  }
-
-  if (location.pathname === "/verify-email") {
-    return <VerifyEmail />;
-  }
-
-  if (location.pathname === "/reset-password") {
-    return <ResetPassword />;
-  }
-
-  if (!user && !isGuestMode && showWelcomeModal) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fff8f7] p-6 text-[#382530]">
-        <div className="w-full max-w-md rounded-4xl border border-[#f0d9df] bg-white p-8 shadow-[0_24px_80px_-28px_rgba(56,37,48,0.4)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9a4f63]">
-            ESIA
-          </p>
-          <h1 className="mt-4 text-3xl font-semibold">مرحبا بك</h1>
-          <p className="mt-2 text-sm text-[#6b5460]">
-            اختَر طريقة الدخول المناسبة لك، ويمكنك المستقبِل تسجيل الدخول كـ
-            admin أو كـ مستخدم عادي.
-          </p>
-
-          <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              onClick={handleGuestContinue}
-              className="w-full rounded-2xl bg-[#382530] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#271d25]"
-            >
-              الدخول كضيف
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenAuth}
-              className="w-full rounded-2xl border border-[#d6b0ba] bg-[#fff4f3] px-4 py-3 text-base font-semibold text-[#382530] transition hover:bg-[#fdebf0]"
-            >
-              تسجيل الدخول / إنشاء حساب
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (
-    !user &&
-    isGuestMode &&
-    (view === "admin-orders" || view === "admin-products")
-  ) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (
-    !user &&
-    !isGuestMode &&
-    (view === "admin-orders" || view === "admin-products")
-  ) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (!user && !isGuestMode) {
-    return <AuthPage />;
-  }
-
-  if (!isAdmin && (view === "admin-orders" || view === "admin-products")) {
-    return <Navigate to="/" replace />;
-  }
-
-  const redirect = (v: string, id?: string) => {
-    navigate(getRouteTarget(v, id));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleLogout = async () => {
-    await signOut.signOut();
-    navigate("/auth");
-  };
-
-  const addToCart = ({
-    productId,
-    name,
-    price,
-    size,
-    color,
-    image,
-    qty,
-  }: Omit<CartItem, "variantKey"> & { qty: number }) => {
-    setCartItems((prev) => {
-      const variantKey = `${productId}-${size}-${color}`;
-      const existingIndex = prev.findIndex(
-        (item) => item.variantKey === variantKey,
-      );
-
-      if (existingIndex >= 0) {
-        const next = [...prev];
-        next[existingIndex] = {
-          ...next[existingIndex],
-          qty: next[existingIndex].qty + qty,
-        };
-        return next;
+  const loadCart = useCallback(async () => {
+    setCartLoading(true);
+    setCartError(null);
+    try {
+      if (user?.role === "user") {
+        const guestData = guestCartItems.current.length > 0 ? null : await cartService.getGuestCart();
+        const guestItems = guestCartItems.current.length > 0 ? guestCartItems.current : mapCart(guestData);
+        if (guestItems.length > 0) await cartService.merge(guestItems.map((item) => ({
+          productId: Number(item.productId),
+          quantity: item.qty,
+          colorId: item.colorId,
+          size: item.size || undefined,
+        })));
+        guestCartItems.current = [];
+        localStorage.removeItem("esia-guest-token");
       }
+      const cart = await cartService.get();
+      const mappedItems = mapCart(cart);
+      if (!user) guestCartItems.current = mappedItems;
+      setCartItems(mappedItems);
+    } catch (loadError) {
+      setCartError(getApiErrorMessage(loadError));
+    } finally {
+      setCartLoading(false);
+    }
+  }, [user?.$id]);
 
-      return [
-        ...prev,
-        { variantKey, productId, name, price, size, color, image, qty },
-      ];
-    });
-  };
+  useEffect(() => {
+    if (!isLoading) void loadCart();
+  }, [isLoading, user?.$id, loadCart]);
 
-  const updateItemQty = (variantKey: string, nextQty: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) =>
-          item.variantKey === variantKey ? { ...item, qty: nextQty } : item,
-        )
-        .filter((item) => item.qty > 0),
+  useEffect(() => {
+    if (isLoading || !user || location.pathname !== "/auth") return;
+    const requestedPath = (location.state as { from?: string } | null)?.from;
+    const canReturnToRequestedPath = requestedPath && (
+      user.role === "admin"
+        ? requestedPath.startsWith("/admin-")
+        : !requestedPath.startsWith("/admin-") && requestedPath !== "/auth"
     );
+    navigate(canReturnToRequestedPath ? requestedPath : user.role === "admin" ? "/admin-orders" : "/", { replace: true });
+  }, [isLoading, user, location.pathname, location.state, navigate]);
+
+  const redirect = useCallback((view: string, value?: string) => {
+    let target = "/";
+    if (view.startsWith("category:")) target = "/category/" + encodeURIComponent(view.slice("category:".length));
+    else if (view.startsWith("track-order:")) target = "/track-order/" + encodeURIComponent(view.slice("track-order:".length));
+    else if (view === "home") target = "/";
+    else if (view === "dresses" || view === "bags" || view === "accessories") target = "/category/" + view;
+    else if (view === "story") target = "/story";
+    else if (view === "product") target = value ? "/product/" + encodeURIComponent(value) : "/";
+    else if (view === "checkout") target = "/checkout";
+    else if (view === "auth") target = "/auth";
+    else if (view === "my-orders") target = "/my-orders";
+    else if (view === "track-order") target = value ? "/track-order/" + encodeURIComponent(value) : "/track-order";
+    else if (view === "admin-orders") target = "/admin-orders";
+    else if (view === "admin-products") target = "/admin-products";
+    else if (view === "admin-catalog") target = "/admin-catalog";
+    navigate(target);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [navigate]);
+
+  const applyCart = (data: any) => {
+    const mappedItems = mapCart(data);
+    if (!user) guestCartItems.current = mappedItems;
+    setCartItems(mappedItems);
+    setCartError(null);
   };
 
-  const removeItem = (variantKey: string) => {
-    setCartItems((prev) =>
-      prev.filter((item) => item.variantKey !== variantKey),
-    );
+  const addToCart = async (item: AddCartItem) => {
+    try {
+      const cart = await cartService.add({
+        productId: Number(item.productId),
+        quantity: item.qty,
+        colorId: item.colorId,
+        size: item.size || undefined,
+      });
+      applyCart(cart);
+    } catch (addError) {
+      setCartError(getApiErrorMessage(addError));
+      throw addError;
+    }
   };
 
-  const clearCart = () => setCartItems([]);
+  const updateItemQty = async (itemId: number, quantity: number) => {
+    try {
+      const cart = quantity <= 0
+        ? await cartService.remove(itemId)
+        : await cartService.update(itemId, quantity);
+      applyCart(cart);
+    } catch (updateError) {
+      setCartError(getApiErrorMessage(updateError));
+      throw updateError;
+    }
+  };
 
-  const placeOrder = async ({
-    customer,
-    phone,
-    items,
-    total,
-    receiptImage,
-  }: {
-    customer: string;
+  const removeItem = async (itemId: number) => {
+    try {
+      applyCart(await cartService.remove(itemId));
+    } catch (removeError) {
+      setCartError(getApiErrorMessage(removeError));
+      throw removeError;
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      await cartService.clear();
+      setCartItems([]);
+      setCartError(null);
+    } catch (clearError) {
+      setCartError(getApiErrorMessage(clearError));
+      throw clearError;
+    }
+  };
+
+  const placeOrder = async (payload: {
+    customerName: string;
+    email: string;
     phone: string;
+    address: string;
+    city?: string;
     items: CartItem[];
     total: number;
-    receiptImage: string;
+    senderName: string;
+    senderNumber: string;
+    paymentAmount: number;
+    proofFile: File;
+    notes?: string;
   }) => {
-    const orderId = `ESIA-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${String(Date.now()).slice(-4)}`;
-
-    const nextOrder: Order = {
-      id: orderId,
-      time: "الآن",
-      customer,
-      phone,
-      items: items.map((item) => ({
-        name: item.name,
-        color: item.color,
-        size: item.size,
-        qty: item.qty,
-      })),
-      total,
-      status: "pending",
-      receiptImage,
-    };
-
-    setOrders((prev) => [nextOrder, ...prev]);
+    const formData = new FormData();
+    formData.append("customerName", payload.customerName);
+    formData.append("email", payload.email);
+    formData.append("phone", payload.phone);
+    formData.append("address", payload.address);
+    if (payload.city) formData.append("city", payload.city);
+    if (payload.notes) formData.append("notes", payload.notes);
+    formData.append("totalAmount", String(payload.total));
+    formData.append("items", JSON.stringify(payload.items.map((item) => ({
+        productId: Number(item.productId),
+        quantity: item.qty,
+        size: item.size || undefined,
+        colorId: item.colorId,
+      }))));
+    formData.append("paymentMethod", "vodafone_cash");
+    formData.append("senderName", payload.senderName);
+    formData.append("senderNumber", payload.senderNumber);
+    formData.append("paymentAmount", String(payload.paymentAmount));
+    formData.append("proofImage", payload.proofFile);
+    const response = await ordersService.create(formData);
+    const orderNumber = response?.order?.orderNumber;
+    if (!orderNumber) throw new Error("The server did not return an order number.");
+    return String(orderNumber);
   };
 
-  const isStore = STORE_VIEWS.includes(view);
-  const isAdminPage = view === "admin-orders" || view === "admin-products";
-  const visibleNavItems: { key: View; label: string; icon: string }[] = [
-    { key: "auth", label: "الحساب", icon: "🔐" },
-  ];
+  const logout = async () => {
+    await signOut.signOut();
+    navigate("/auth", { replace: true });
+  };
+  const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.qty, 0), [cartItems]);
 
-  if (isAdmin && isAdminPage) {
-    visibleNavItems.unshift(
-      { key: "admin-orders", label: "الطلبات", icon: "📦" },
-      { key: "admin-products", label: "المنتجات", icon: "✏️" },
-    );
-  } else {
-    visibleNavItems.unshift({ key: "home", label: "المتجر", icon: "🛍" });
+  if (isLoading) {
+    return <main className="grid min-h-screen place-items-center bg-[#fff8f7] text-[#382530]" role="status">جارٍ تحميل الجلسة...</main>;
+  }
+  if (user?.role === "admin" && !location.pathname.startsWith("/admin-") && !["/auth", "/verify-email", "/reset-password"].includes(location.pathname)) {
+    return <Navigate to="/admin-orders" replace />;
   }
 
-  if (!user && !isGuestMode && location.pathname !== "/auth") {
-    return null;
-  }
+  const sharedStoreProps = {
+    onNavigate: redirect,
+    cart: cartCount,
+    showGuestSignIn: !user,
+  };
 
   return (
-    <div className="min-h-full">
-      <div
-        className="fixed bottom-5 left-1/2 z-50 flex items-center gap-1 px-2 py-2 rounded-2xl shadow-xl"
-        style={{
-          transform: "translateX(-50%)",
-          background: "rgba(56,37,48,0.92)",
-          backdropFilter: "blur(12px)",
-          boxShadow: "0 8px 30px -8px rgba(56,37,48,0.5)",
-        }}
-      >
-        {visibleNavItems.map(({ key, label, icon }) => (
-          <button
-            key={key}
-            onClick={() => redirect(key)}
-            className="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5"
-            style={
-              (key === "home" ? isStore : view === key)
-                ? { background: "var(--rose-deep)", color: "#fff" }
-                : { background: "transparent", color: "rgba(255,255,255,0.6)" }
-            }
-          >
-            <span>{icon}</span>
-            {label}
-          </button>
-        ))}
-
-        {user ? (
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-xl border border-white/20 bg-[#fff4f3] px-3 py-2 text-[10px] font-bold text-[#382530] transition hover:bg-white"
-          >
-            🚪 خروج
-          </button>
-        ) : null}
-      </div>
-
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <Storefront
-              view="home"
-              onNavigate={redirect}
-              cart={cartCount}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-            />
-          }
-        />
-        <Route
-          path="/dresses"
-          element={
-            <Storefront
-              view="dresses"
-              onNavigate={redirect}
-              cart={cartCount}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-            />
-          }
-        />
-        <Route
-          path="/bags"
-          element={
-            <Storefront
-              view="bags"
-              onNavigate={redirect}
-              cart={cartCount}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-            />
-          }
-        />
-        <Route
-          path="/accessories"
-          element={
-            <Storefront
-              view="accessories"
-              onNavigate={redirect}
-              cart={cartCount}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-            />
-          }
-        />
-        <Route
-          path="/story"
-          element={
-            <Storefront
-              view="story"
-              onNavigate={redirect}
-              cart={cartCount}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-            />
-          }
-        />
-        <Route
-          path="/product/:productId"
-          element={
-            <ProductRoute
-              cart={cartCount}
-              onAddToCart={addToCart}
-              wishlist={wishlist}
-              onToggleWishlist={() => setWishlist((w) => !w)}
-              onNavigate={redirect}
-            />
-          }
-        />
-        <Route
-          path="/checkout"
-          element={
-            <Checkout
-              items={cartItems}
-              onNavigate={redirect}
-              onRemoveItem={removeItem}
-              onUpdateQty={updateItemQty}
-              onClearCart={clearCart}
-              onPlaceOrder={placeOrder}
-            />
-          }
-        />
-        <Route
-          path="/admin-orders"
-          element={<AdminOrders orders={orders} onNavigate={redirect} />}
-        />
-        <Route
-          path="/admin-products"
-          element={<AdminProducts onNavigate={redirect} />}
-        />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route path="/" element={<Storefront view="home" {...sharedStoreProps} />} />
+      <Route path="/dresses" element={<Storefront view="category" categorySlug="dresses" {...sharedStoreProps} />} />
+      <Route path="/bags" element={<Storefront view="category" categorySlug="bags" {...sharedStoreProps} />} />
+      <Route path="/accessories" element={<Storefront view="category" categorySlug="accessories" {...sharedStoreProps} />} />
+      <Route path="/category/:slug" element={<CategoryRoute {...sharedStoreProps} />} />
+      <Route path="/story" element={<Storefront view="story" {...sharedStoreProps} />} />
+      <Route path="/product/:productId" element={<ProductRoute cart={cartCount} onAddToCart={addToCart} onNavigate={redirect} showGuestSignIn={!user} />} />
+      <Route path="/checkout" element={<Checkout items={cartItems} loading={cartLoading} cartError={cartError} onRetryCart={loadCart} onNavigate={redirect} onRemoveItem={removeItem} onUpdateQty={updateItemQty} onClearCart={clearCart} onPlaceOrder={placeOrder} />} />
+      <Route path="/track-order" element={<TrackOrder onNavigate={redirect} />} />
+      <Route path="/track-order/:orderNumber" element={<TrackedOrderRoute onNavigate={redirect} />} />
+      <Route path="/auth" element={<AuthPage user={user} isLoading={isLoading} signIn={signIn} signUp={signUp} signOut={signOut} error={error} onContinueAsGuest={() => navigate("/", { replace: true })} />} />
+      <Route path="/verify-email" element={<EmailVerification />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/my-orders" element={<ProtectedRoute user={user} isLoading={isLoading} role="user"><MyOrders onNavigate={redirect} /></ProtectedRoute>} />
+      <Route path="/admin-orders" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminOrders onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />
+      <Route path="/admin-products" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminProducts onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />
+      <Route path="/admin-catalog" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminCatalog onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
 export default function App() {
   return (
     <BrowserRouter>
-      <DemoAppShell />
+      <CategoriesProvider>
+        <AppAuthShell />
+      </CategoriesProvider>
     </BrowserRouter>
   );
 }

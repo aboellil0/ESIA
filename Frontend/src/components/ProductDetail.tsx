@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
-import { getProduct, PRODUCTS } from "../data/catalog";
+import { useEffect, useMemo, useState } from "react";
+import { mapBackendProduct, type CatalogProduct } from "../data/catalog";
+import { getApiErrorMessage } from "../lib/api";
+import { colorsService, type Color } from "../services/colors";
+import { productsService } from "../services/products";
 import { ProductCard, SiteChrome } from "./SiteChrome";
 
 interface Props {
   productId: string;
-  onNavigate: (v: string, productId?: string) => void;
+  onNavigate: (view: string, productId?: string) => void;
   cart: number;
   onAddToCart: (item: {
     productId: string;
@@ -12,11 +15,14 @@ interface Props {
     price: number;
     size: string;
     color: string;
+    colorNameEn: string;
+    colorNameAr: string;
+    colorHex: string;
+    colorId?: number;
     image: string;
     qty: number;
-  }) => void;
-  wishlist: boolean;
-  onToggleWishlist: () => void;
+  }) => Promise<void>;
+  showGuestSignIn?: boolean;
 }
 
 export default function ProductDetail({
@@ -24,390 +30,149 @@ export default function ProductDetail({
   onNavigate,
   cart,
   onAddToCart,
-  wishlist,
-  onToggleWishlist,
+  showGuestSignIn,
 }: Props) {
-  const product = getProduct(productId);
-  const [activeThumb, setActiveThumb] = useState(0);
+  const [product, setProduct] = useState<CatalogProduct | null>(null);
+  const [related, setRelated] = useState<CatalogProduct[]>([]);
+  const [colors, setColors] = useState<Color[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState(0);
-  const activeColor = product.colors[selectedColor] ?? product.colors[0];
-  const galleryThumbs = activeColor?.thumbs?.length
-    ? activeColor.thumbs
-    : product.thumbs.length
-      ? product.thumbs
-      : [product.img];
-  const galleryImage = activeColor?.img ?? product.img;
-  const unavailableSizes = new Set(
-    (product.unavailableSizes ?? []).map(String),
-  );
-  const availableSizes = product.sizes.filter(
-    (size) => !unavailableSizes.has(size),
-  );
-  const [selectedSize, setSelectedSize] = useState(
-    availableSizes[Math.min(2, availableSizes.length - 1)] ?? product.sizes[0],
-  );
+  const [selectedSize, setSelectedSize] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [cartMessage, setCartMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setActiveThumb(0);
-  }, [selectedColor, product.id]);
+    let current = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      productsService.byId(productId),
+      productsService.list(),
+      colorsService.list().catch(() => []),
+    ])
+      .then(([rawProduct, rawRelated, globalColors]) => {
+        if (!current) return;
+        const mapped = mapBackendProduct(rawProduct);
+        if (!mapped) throw new Error("The server returned an invalid product.");
+        setProduct(mapped);
+        setRelated(rawRelated.map(mapBackendProduct).filter((item): item is CatalogProduct => item !== null && item.id !== mapped.id && item.isActive).slice(0, 4));
+        setColors(globalColors);
+        setSelectedSize(mapped.sizes.find((size) => !mapped.unavailableSizes.includes(size)) ?? "");
+        setActiveImage(0);
+        setSelectedColor(0);
+      })
+      .catch((loadError) => {
+        if (current) {
+          setProduct(null);
+          setRelated([]);
+          setError(getApiErrorMessage(loadError));
+        }
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [productId, retryKey]);
 
-  useEffect(() => {
-    if (!availableSizes.length) return;
+  const images = useMemo(() => product?.images.map((image) => image.imageUrl) ?? [], [product]);
+  const color = product?.colors[selectedColor] ?? product?.colors[0];
+  const image = images[activeImage] ?? color?.img ?? product?.img ?? "";
+  const availableSizes = product ? product.sizes.filter((size) => !product.unavailableSizes.includes(size)) : [];
+  const globalColor = colors.find((item) =>
+    (color?.hexCode && item.hexCode.toLowerCase() === color.hexCode.toLowerCase()) ||
+    item.nameEn.toLowerCase() === color?.nameEn.toLowerCase(),
+  );
 
-    if (!availableSizes.includes(selectedSize)) {
-      setSelectedSize(availableSizes[0]);
+  const addToCart = async () => {
+    if (!product || (availableSizes.length > 0 && !selectedSize)) return;
+    setSubmitting(true);
+    setCartMessage(null);
+    try {
+      await onAddToCart({
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        size: selectedSize,
+        color: color?.nameAr ?? color?.nameEn ?? "",
+        colorNameEn: color?.nameEn ?? "",
+        colorNameAr: color?.nameAr ?? "",
+        colorHex: color?.hexCode ?? "",
+        colorId: globalColor?.id,
+        image,
+        qty: quantity,
+      });
+      setCartMessage("تمت إضافة المنتج إلى السلة.");
+    } catch (addError) {
+      setCartMessage(getApiErrorMessage(addError));
+    } finally {
+      setSubmitting(false);
     }
-  }, [availableSizes, selectedSize]);
-  const [qty, setQty] = useState(1);
-  const [accordion, setAccordion] = useState<Record<string, boolean>>({});
-  const [added, setAdded] = useState(false);
-
-  const related = PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4);
-
-  const toggleAccordion = (key: string) =>
-    setAccordion((prev) => ({ ...prev, [key]: !prev[key] }));
-
-  const handleAddToCart = () => {
-    if (unavailableSizes.has(selectedSize)) return;
-
-    onAddToCart({
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      size: selectedSize,
-      color: activeColor?.color ?? "black",
-      image: galleryImage,
-      qty,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
   };
 
   return (
-    <SiteChrome
-      view="product"
-      onNavigate={onNavigate}
-      cart={cart}
-      wishlist={wishlist}
-      onToggleWishlist={onToggleWishlist}
-    >
-      <div
-        className="max-w-[1260px] mx-auto px-6 pt-6 w-full text-sm"
-        style={{ color: "var(--plum-soft)" }}
-      >
-        <button
-          type="button"
-          onClick={() => onNavigate("home")}
-          className="bg-transparent border-none p-0"
-          style={{ color: "var(--rose-deep)" }}
-        >
-          الرئيسية
-        </button>
-        {" / "}
-        <button
-          type="button"
-          onClick={() => onNavigate(product.category)}
-          className="bg-transparent border-none p-0"
-          style={{ color: "var(--rose-deep)" }}
-        >
-          {product.category === "dresses"
-            ? "الفساتين"
-            : product.category === "bags"
-              ? "الحقائب"
-              : "الإكسسوارات"}
-        </button>
-        {" / "}
-        <span style={{ color: "var(--plum)" }}>{product.name}</span>
-      </div>
+    <SiteChrome view="product" onNavigate={onNavigate} cart={cart} showGuestSignIn={showGuestSignIn}>
+      <div className="mx-auto max-w-[1260px] px-5 py-8">
+        <button type="button" onClick={() => onNavigate("home")} className="mb-6 bg-transparent p-0 text-sm" style={{ color: "var(--rose-deep)" }}>الرئيسية / المنتجات</button>
+        {loading && <p className="py-24 text-center" role="status">جارٍ تحميل المنتج...</p>}
+        {!loading && error && <div role="alert" className="rounded-2xl bg-white p-8 text-center text-red-700">{error}<div><button type="button" onClick={() => setRetryKey((value) => value + 1)} className="mt-4 underline">إعادة المحاولة</button></div></div>}
+        {!loading && !error && !product && <p className="py-24 text-center">المنتج غير متاح.</p>}
 
-      <div className="max-w-[1260px] mx-auto px-6 py-10 w-full">
-        <div className="grid gap-12 lg:grid-cols-2 items-start">
-          <div className="flex gap-3" style={{ direction: "ltr" }}>
-            <div className="flex flex-col gap-2.5">
-              {galleryThumbs.map((t, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveThumb(i)}
-                  className="rounded-xl overflow-hidden flex-none transition-all"
-                  style={{
-                    width: 72,
-                    height: 90,
-                    border:
-                      activeThumb === i
-                        ? "2px solid var(--rose-deep)"
-                        : "1.5px solid var(--line)",
-                  }}
-                >
-                  <img src={t} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-            <div
-              className="flex-1 rounded-2xl overflow-hidden"
-              style={{ aspectRatio: "3/4", border: "1px solid var(--line)" }}
-            >
-              <img
-                src={galleryThumbs[activeThumb] ?? galleryImage}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <div
-              className="text-xs font-bold tracking-[0.14em] uppercase mb-2"
-              style={{ color: "var(--gold)" }}
-            >
-              ESIA COUTURE
-            </div>
-            <h1
-              className="font-marcellus text-4xl leading-tight mb-1"
-              style={{ color: "var(--plum)" }}
-            >
-              {product.name}
-            </h1>
-            <p
-              className="dir-ltr text-sm mb-4"
-              style={{ color: "var(--plum-soft)" }}
-            >
-              {product.sub}
-            </p>
-
-            <div className="flex items-center gap-3 mb-6">
-              <span
-                className="text-[28px] font-bold"
-                style={{ color: "var(--rose-deep)" }}
-              >
-                {product.price.toLocaleString()} ج.م
-              </span>
-              {product.originalPrice && (
-                <>
-                  <span
-                    className="text-base line-through"
-                    style={{ color: "var(--gray)" }}
-                  >
-                    {product.originalPrice.toLocaleString()} ج.م
-                  </span>
-                  <span
-                    className="text-xs font-bold px-2.5 py-1 rounded-full"
-                    style={{
-                      background: "var(--blush-soft)",
-                      color: "var(--rose-deep)",
-                    }}
-                  >
-                    وفري{" "}
-                    {Math.round(
-                      (1 - product.price / product.originalPrice) * 100,
-                    )}
-                    %
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div
-              className="my-5"
-              style={{ borderBottom: "1px solid var(--line)" }}
-            />
-
-            <div className="mb-5">
-              <div
-                className="text-sm font-semibold mb-2.5"
-                style={{ color: "var(--plum)" }}
-              >
-                اللون:{" "}
-                <span style={{ color: "var(--plum-soft)", fontWeight: 400 }}>
-                  {activeColor?.color ?? "black"}
-                </span>
+        {!loading && !error && product && (
+          <>
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div>
+                <div className="overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
+                  {image ? <img src={image} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
+                </div>
+                {images.length > 1 && <div className="mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={product.images[index]?.id ?? index} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
               </div>
-              <div className="flex gap-2.5">
-                {product.colors.map((c, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedColor(i)}
-                    className="rounded-full transition-all"
-                    style={{
-                      width: 26,
-                      height: 26,
-                      background: c.color,
-                      outline:
-                        selectedColor === i
-                          ? `2px solid var(--rose-deep)`
-                          : "2px solid transparent",
-                      outlineOffset: 2,
-                      boxShadow: "0 0 0 1px var(--line)",
-                    }}
-                    title={c.color}
-                  />
-                ))}
-              </div>
-            </div>
+              <div className="rounded-3xl bg-white p-6 md:p-8" style={{ border: "1px solid var(--line)" }}>
+                {product.categoryName && <p className="text-xs" style={{ color: "var(--gold)" }}>{product.categoryName}</p>}
+                <h1 className="mt-2 font-marcellus text-3xl" style={{ color: "var(--plum)" }}>{product.name}</h1>
+                {product.sub && <p className="mt-3 leading-7" style={{ color: "var(--plum-soft)" }}>{product.sub}</p>}
+                <div className="mt-5 flex items-center gap-3">
+                  <span className="text-2xl font-bold" style={{ color: "var(--rose-deep)" }}>{product.price.toLocaleString()} ج.م</span>
+                  {product.originalPrice !== null && <span className="line-through" style={{ color: "var(--gray)" }}>{product.originalPrice.toLocaleString()} ج.م</span>}
+                </div>
 
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2.5">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--plum)" }}
-                >
-                  المقاس
-                </span>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {product.sizes.map((s) => {
-                  const isUnavailable = unavailableSizes.has(s);
+                {product.colors.length > 0 && <div className="mt-7">
+                  <p className="mb-3 text-sm font-semibold">اللون: {color?.nameAr || color?.nameEn}</p>
+                  <div className="flex gap-3">{product.colors.map((item, index) => <button key={item.backendId ?? index} type="button" aria-label={item.nameAr} onClick={() => setSelectedColor(index)} className="h-8 w-8 rounded-full border-2" style={{ background: item.hexCode ?? item.color, borderColor: selectedColor === index ? "var(--plum)" : "var(--line)" }} />)}</div>
+                </div>}
 
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => !isUnavailable && setSelectedSize(s)}
-                      disabled={isUnavailable}
-                      className="h-10 px-3.5 rounded-xl text-sm font-semibold transition-all disabled:cursor-not-allowed"
-                      style={
-                        isUnavailable
-                          ? {
-                              border: "1.3px dashed var(--line)",
-                              background: "var(--ivory)",
-                              color: "var(--gray)",
-                              opacity: 0.55,
-                            }
-                          : selectedSize === s
-                            ? {
-                                border: "2px solid var(--rose-deep)",
-                                background: "#fff",
-                                color: "var(--rose-deep)",
-                              }
-                            : {
-                                border: "1.3px solid var(--line)",
-                                background: "#fff",
-                                color: "var(--plum)",
-                              }
-                      }
-                    >
-                      {s}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                <div className="mt-7">
+                  <p className="mb-3 text-sm font-semibold">المقاس</p>
+                  <div className="flex flex-wrap gap-2">{product.sizes.map((size) => {
+                    const available = !product.unavailableSizes.includes(size);
+                    return <button key={size} type="button" disabled={!available} onClick={() => setSelectedSize(size)} className="min-w-12 rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40" style={{ borderColor: selectedSize === size ? "var(--rose-deep)" : "var(--line)", background: selectedSize === size ? "var(--blush-soft)" : "#fff" }}>{size}</button>;
+                  })}</div>
+                  {!availableSizes.length && <p className="mt-2 text-sm text-red-700">لا توجد مقاسات متاحة حالياً.</p>}
+                </div>
 
-            <div className="flex gap-3 items-center mb-6">
-              <div
-                className="flex items-center gap-0 rounded-xl overflow-hidden"
-                style={{ border: "1px solid var(--line)" }}
-              >
-                <button
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="w-10 h-12 text-xl font-light flex items-center justify-center border-none bg-transparent"
-                  style={{
-                    color: "var(--plum)",
-                    borderInlineEnd: "1px solid var(--line)",
-                  }}
-                >
-                  −
-                </button>
-                <span
-                  className="w-10 h-12 flex items-center justify-center text-sm font-semibold"
-                  style={{ color: "var(--plum)" }}
-                >
-                  {qty}
-                </span>
-                <button
-                  onClick={() => setQty((q) => q + 1)}
-                  className="w-10 h-12 text-xl font-light flex items-center justify-center border-none bg-transparent"
-                  style={{
-                    color: "var(--plum)",
-                    borderInlineStart: "1px solid var(--line)",
-                  }}
-                >
-                  +
-                </button>
-              </div>
-              <button
-                onClick={handleAddToCart}
-                className="flex-1 h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-white transition-all"
-                style={{
-                  background: added
-                    ? "var(--sage-deep)"
-                    : "linear-gradient(135deg, var(--rose), var(--rose-deep))",
-                }}
-              >
-                {added ? "تمت الإضافة ✓" : "أضيفي للسلة"}
-              </button>
-            </div>
-
-            {[
-              {
-                key: "fabric",
-                label: "تفاصيل المنتج",
-                content: product.fabric,
-              },
-              { key: "care", label: "تعليمات العناية", content: product.care },
-            ].map(({ key, label, content }) => (
-              <div key={key} style={{ borderTop: "1px solid var(--line)" }}>
-                <button
-                  onClick={() => toggleAccordion(key)}
-                  className="w-full flex items-center justify-between py-4 bg-transparent border-none text-right"
-                  style={{ color: "var(--plum)" }}
-                >
-                  <span className="text-sm font-semibold">{label}</span>
-                  <svg
-                    className="w-5 h-5 flex-none transition-transform"
-                    style={{
-                      transform: accordion[key] ? "rotate(45deg)" : "rotate(0)",
-                      color: "var(--plum-soft)",
-                    }}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.6}
-                  >
-                    <line x1={12} y1={5} x2={12} y2={19} />
-                    <line x1={5} y1={12} x2={19} y2={12} />
-                  </svg>
-                </button>
-                {accordion[key] && (
-                  <div
-                    className="pb-4 text-sm leading-relaxed"
-                    style={{ color: "var(--plum-soft)" }}
-                  >
-                    {content}
+                <div className="mt-7 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center rounded-xl border" style={{ borderColor: "var(--line)" }}>
+                    <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="px-4 py-2">−</button>
+                    <span className="min-w-8 text-center">{quantity}</span>
+                    <button type="button" disabled={quantity >= 99} onClick={() => setQuantity((value) => Math.min(99, value + 1))} className="px-4 py-2">+</button>
                   </div>
-                )}
+                  <button type="button" onClick={addToCart} disabled={(availableSizes.length > 0 && !selectedSize) || submitting || !product.isActive} className="flex-1 rounded-xl px-6 py-3 font-bold text-white disabled:opacity-50" style={{ background: "var(--rose-deep)" }}>{submitting ? "جارٍ الإضافة..." : "أضيفي إلى السلة"}</button>
+                </div>
+                {cartMessage && <p role="status" className="mt-4 text-sm" style={{ color: "var(--plum-soft)" }}>{cartMessage}</p>}
+                {product.fabric && <div className="mt-8 border-t pt-5" style={{ borderColor: "var(--line)" }}><h2 className="font-semibold">التفاصيل</h2><p className="mt-2 leading-7" style={{ color: "var(--plum-soft)" }}>{product.fabric}</p></div>}
               </div>
-            ))}
-            <div style={{ borderTop: "1px solid var(--line)" }} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-[1260px] mx-auto px-6 py-10 w-full">
-        <div className="flex items-center justify-between mb-7">
-          <h2
-            className="font-marcellus text-2xl"
-            style={{ color: "var(--plum)" }}
-          >
-            أكملي مظهرك بقطع متناسقة
-          </h2>
-          <button
-            type="button"
-            onClick={() => onNavigate("home")}
-            className="text-xs font-semibold bg-transparent border-none"
-            style={{ color: "var(--rose-deep)" }}
-          >
-            كل المنتجات
-          </button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {related.map((item) => (
-            <ProductCard
-              key={item.id}
-              item={item}
-              onOpen={(id) => onNavigate("product", id)}
-            />
-          ))}
-        </div>
+            </div>
+            <section className="mt-14">
+              <h2 className="mb-5 font-marcellus text-2xl" style={{ color: "var(--plum)" }}>منتجات أخرى</h2>
+              {related.length ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">{related.map((item) => <ProductCard key={item.id} item={item} onOpen={(id) => onNavigate("product", id)} />)}</div> : <p style={{ color: "var(--plum-soft)" }}>لا توجد منتجات أخرى حالياً.</p>}
+            </section>
+          </>
+        )}
       </div>
     </SiteChrome>
   );

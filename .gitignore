@@ -1,3 +1,6 @@
 ﻿certbot/conf/
 certbot/www/
 sequelize_with_nodejs-main/
+# Local environment - never commit real secrets (use .env.example / .env.prod as templates)
+.env
+.env.local

@@ -1,219 +1,115 @@
-import { useState } from "react";
-import { useDemoAuth, signUpDemoUser, signInDemoUser } from "../lib/demoAuth";
-import { registerApi, loginApi, resendVerificationApi, forgotPasswordApi, getApiErrorMessage, isEmailNotVerifiedError } from "../lib/authApi";
+import { useState, type FormEvent } from "react";
+import { getApiErrorMessage } from "../lib/api";
+import { authService } from "../services/auth";
 
-function DemoAuthPage() {
-  const { user, isLoading, signOut, error: demoError } = useDemoAuth();
-  const [email, setEmail] = useState("admin@yourstore.com");
-  const [password, setPassword] = useState("123456");
-  const [name, setName] = useState("Admin");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export type AuthPageProps = {
+  user: any;
+  isLoading: boolean;
+  signIn: { emailPassword: (input: { email: string; password: string }) => Promise<any> };
+  signUp: { emailPassword: (input: { email: string; password: string; name?: string; phone?: string }) => Promise<any> };
+  signOut: { signOut: () => Promise<void> };
+  error: { message: string } | null;
+  onContinueAsGuest: () => void;
+};
+
+type FormMode = "signin" | "signup" | "forgot" | "resend";
+const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
+const inputClass = "w-full rounded-xl border border-[#ead5db] bg-[#fffaf9] px-4 py-3 text-sm text-[#382530] outline-none focus:border-[#9a4f63]";
+
+export default function AuthPage({ user, isLoading, signIn, signUp, signOut, error, onContinueAsGuest }: AuthPageProps) {
+  const [mode, setMode] = useState<FormMode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [needsVerificationFor, setNeedsVerificationFor] = useState<string | null>(null);
-  const [showForgot, setShowForgot] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  if (isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fff8f7] text-[#382530]">
-        <p className="text-lg font-medium">Loading...</p>
-      </main>
-    );
-  }
+  const changeMode = (next: FormMode) => {
+    setMode(next);
+    setNotice(null);
+    setActionError(null);
+  };
 
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setNotice(null);
+    setActionError(null);
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (mode === "forgot") {
+        const result = await authService.requestPasswordReset(normalizedEmail);
+        setNotice(result?.message ?? "إذا كان البريد مسجلًا، فستصلك تعليمات إعادة تعيين كلمة المرور.");
+      } else if (mode === "resend") {
+        const result = await authService.resendVerification(normalizedEmail);
+        setNotice(result?.message ?? "إذا كان الحساب يحتاج إلى التأكيد، فسيصلك رابط التأكيد على البريد.");
+      } else if (mode === "signup") {
+        if (!strongPassword.test(password)) {
+          setActionError("استخدمي 8 أحرف على الأقل مع حرف كبير وصغير ورقم ورمز خاص، دون مسافات.");
+          return;
+        }
+        const result = await signUp.emailPassword({ email: normalizedEmail, password, name: name.trim() || undefined, phone: phone.trim() || undefined });
+        if (result) {
+          setPassword("");
+          setMode("resend");
+          setNotice("تم إنشاء الحساب. افتحي رسالة تأكيد البريد قبل تسجيل الدخول.");
+        }
+      } else {
+        await signIn.emailPassword({ email: normalizedEmail, password });
+      }
+    } catch (submitError) {
+      setActionError(getApiErrorMessage(submitError));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (isLoading) return <main className="grid min-h-screen place-items-center bg-[#fff8f7]" role="status">جارٍ تحميل الحساب...</main>;
   if (user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fff8f7] px-6 text-[#382530]">
-        <div className="w-full max-w-md rounded-3xl border border-[#f0d9df] bg-white p-8 shadow-[0_18px_60px_-28px_rgba(56,37,48,0.35)]">
-          <p className="text-2xl font-semibold">
-            Welcome, {user.name || user.email}
-          </p>
-          <p className="mt-3 text-sm text-[#6b5460]">Demo auth is active</p>
-          <button
-            type="button"
-            onClick={() => signOut.signOut()}
-            className="mt-6 w-full rounded-xl bg-[#9a4f63] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#843e51]"
-          >
-            Sign out
-          </button>
-        </div>
+      <main className="grid min-h-screen place-items-center bg-[#fff8f7] px-5 text-[#382530]">
+        <section className="w-full max-w-md rounded-3xl border border-[#f0d9df] bg-white p-8 text-center shadow-lg">
+          <h1 className="text-2xl font-semibold">مرحباً، {user.name || user.email}</h1>
+          <p className="mt-2 text-sm text-[#6b5460]">الدور: {user.role === "admin" ? "مدير" : "مستخدم"}</p>
+          <button type="button" onClick={() => void signOut.signOut()} className="mt-6 w-full rounded-xl bg-[#9a4f63] px-4 py-3 font-semibold text-white">تسجيل الخروج</button>
+        </section>
       </main>
     );
   }
 
-  const handleRegister = async () => {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    setNeedsVerificationFor(null);
-    try {
-      const res = await registerApi({ name, email, password });
-      // Save credentials locally for later login, but do NOT start a session:
-      // the account is unverified and must confirm email + log in first.
-      signUpDemoUser({ email, password, name });
-      await signOut.signOut();
-      setNotice((res?.message || "Registration successful. Please check your email to confirm your account.") + " You must verify your email before you can log in.");
-      setNeedsVerificationFor(email);
-    } catch (err: any) {
-      setError(getApiErrorMessage(err, "Registration failed."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    setNeedsVerificationFor(null);
-    try {
-      const res = await loginApi({ email, password });
-      const payload = res?.data;
-      if (payload?.accessToken) {
-        localStorage.setItem("esia-auth-tokens", JSON.stringify({ accessToken: payload.accessToken, refreshToken: payload.refreshToken }));
-      }
-      // Mirror into demo session so the storefront gating keeps working
-      const fallback = signInDemoUser({ email, password });
-      if (!fallback.ok) {
-        signUpDemoUser({ email, password, name: payload?.user?.name || name });
-      }
-      window.location.reload();
-    } catch (err: any) {
-      if (isEmailNotVerifiedError(err)) {
-        setError(err?.response?.data?.message || "Please verify your email before logging in.");
-        setNeedsVerificationFor(email);
-      } else {
-        setError(getApiErrorMessage(err, "Authentication failed."));
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleResend = async () => {
-    const target = needsVerificationFor || email;
-    if (!target) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await resendVerificationApi(target);
-      setNotice(res?.message || "Verification email sent. Please check your inbox.");
-    } catch (err: any) {
-      setError(getApiErrorMessage(err, "Could not resend verification email."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleForgot = async () => {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await forgotPasswordApi(email);
-      setNotice(res?.message || "If an account exists for this email, a password reset link has been sent.");
-    } catch (err: any) {
-      setError(getApiErrorMessage(err, "Could not send reset email."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const displayError = error || demoError?.message || null;
+  const heading = mode === "signin" ? "تسجيل الدخول" : mode === "signup" ? "إنشاء حساب" : mode === "forgot" ? "استعادة كلمة المرور" : "تأكيد البريد الإلكتروني";
+  const actionLabel = mode === "signin" ? "تسجيل الدخول" : mode === "signup" ? "إنشاء الحساب" : mode === "forgot" ? "إرسال رابط الاستعادة" : "إعادة إرسال رابط التأكيد";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#fff8f7] px-6 text-[#382530]">
-      <div className="w-full max-w-md rounded-3xl border border-[#f0d9df] bg-white p-8 shadow-[0_18px_60px_-28px_rgba(56,37,48,0.35)]">
-        <h1 className="mb-6 text-2xl font-semibold">Demo Auth</h1>
-
-        <div className="space-y-4">
-          <input
-            placeholder="Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="w-full rounded-xl border border-[#ead5db] bg-[#fffaf9] px-4 py-3 outline-none transition focus:border-[#9a4f63]"
-          />
-          <input
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border border-[#ead5db] bg-[#fffaf9] px-4 py-3 outline-none transition focus:border-[#9a4f63]"
-          />
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-xl border border-[#ead5db] bg-[#fffaf9] px-4 py-3 outline-none transition focus:border-[#9a4f63]"
-          />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleRegister}
-              className="rounded-xl bg-[#382530] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#271d25] disabled:opacity-60"
-            >
-              {busy ? "..." : "Sign up"}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleLogin}
-              className="rounded-xl border border-[#d6b0ba] bg-[#fff4f3] px-4 py-3 text-sm font-semibold text-[#382530] transition hover:bg-[#fdebf0] disabled:opacity-60"
-            >
-              {busy ? "..." : "Sign in"}
-            </button>
-          </div>
-
-          {needsVerificationFor ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleResend}
-              className="w-full rounded-xl border border-dashed border-[#9a4f63] px-4 py-3 text-sm font-semibold text-[#9a4f63] transition hover:bg-[#fff4f3] disabled:opacity-60"
-            >
-              Resend confirmation email
-            </button>
-          ) : null}
-
-          {showForgot ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleForgot}
-              className="w-full rounded-xl bg-[#9a4f63] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#843e51] disabled:opacity-60"
-            >
-              Send password reset email
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => { setShowForgot(true); setError(null); setNotice(null); }}
-              className="w-full text-center text-sm font-semibold text-[#9a4f63] hover:underline"
-            >
-              Forgot password?
-            </button>
-          )}
+    <main className="grid min-h-screen place-items-center bg-[#fff8f7] px-5 py-10 text-[#382530]">
+      <section className="w-full max-w-md rounded-3xl border border-[#f0d9df] bg-white p-7 shadow-[0_18px_60px_-28px_rgba(56,37,48,0.35)]">
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-[#9a4f63]">ESIA COUTURE</p>
+        <h1 className="mb-6 text-2xl font-semibold">{heading}</h1>
+        {(mode === "signin" || mode === "signup") && <div className="mb-6 flex overflow-hidden rounded-xl border border-[#ead5db]">
+          <button type="button" onClick={() => changeMode("signin")} className={"flex-1 py-2.5 text-sm font-semibold " + (mode === "signin" ? "bg-[#9a4f63] text-white" : "bg-white text-[#6b5460]")}>دخول</button>
+          <button type="button" onClick={() => changeMode("signup")} className={"flex-1 py-2.5 text-sm font-semibold " + (mode === "signup" ? "bg-[#9a4f63] text-white" : "bg-white text-[#6b5460]")}>حساب جديد</button>
+        </div>}
+        <form onSubmit={submit} className="space-y-3">
+          {mode === "signup" && <>
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="الاسم الكامل" autoComplete="name" className={inputClass} />
+            <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="رقم الهاتف" type="tel" autoComplete="tel" className={inputClass} />
+          </>}
+          <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="البريد الإلكتروني" autoComplete="email" className={inputClass} dir="ltr" />
+          {(mode === "signin" || mode === "signup") && <input required type="password" minLength={mode === "signup" ? 8 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="كلمة المرور" autoComplete={mode === "signin" ? "current-password" : "new-password"} className={inputClass} dir="ltr" />}
+          {mode === "signup" && <p className="text-xs leading-5 text-gray-500">يجب أن تحتوي كلمة المرور على حرف كبير وصغير ورقم ورمز خاص، وألا تتضمن مسافات.</p>}
+          {notice && <p role="status" className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
+          {(actionError || ((mode === "signin" || mode === "signup") && error?.message)) && <p role="alert" className="rounded-xl bg-[#fff0f1] px-3 py-2 text-sm text-[#b03a3a]">{actionError ?? error?.message}</p>}
+          <button type="submit" disabled={submitting} className="mt-3 w-full rounded-xl bg-[#9a4f63] px-4 py-3 font-semibold text-white disabled:opacity-50">{submitting ? "جارٍ الإرسال..." : actionLabel}</button>
+        </form>
+        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm text-[#6b5460]">
+          {mode === "signin" && <button type="button" onClick={() => changeMode("forgot")} className="underline">نسيت كلمة المرور؟</button>}
+          {mode === "signin" && <button type="button" onClick={() => changeMode("resend")} className="underline">إعادة إرسال تأكيد البريد</button>}
+          {(mode === "forgot" || mode === "resend") && <button type="button" onClick={() => changeMode("signin")} className="underline">العودة لتسجيل الدخول</button>}
         </div>
-
-        {notice ? (
-          <p className="mt-4 rounded-xl bg-[#eef9ef] px-3 py-2 text-sm text-[#2c6b34]">
-            {notice}
-          </p>
-        ) : null}
-
-        {displayError ? (
-          <p className="mt-4 rounded-xl bg-[#fff0f1] px-3 py-2 text-sm text-[#b03a3a]">
-            {displayError}
-          </p>
-        ) : null}
-      </div>
+        <button type="button" onClick={onContinueAsGuest} className="mt-4 w-full rounded-xl border border-[#d6b0ba] bg-[#fffaf9] px-4 py-3 text-sm font-semibold text-[#6b5460]">المتابعة كضيف</button>
+      </section>
     </main>
   );
-}
-
-export default function AuthPage() {
-  return <DemoAuthPage />;
 }
