@@ -54,18 +54,31 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   // Get proof image from uploaded file or body URL
   const proofImageUrl = getProofImageUrl(req);
 
-  if (!customerName || !email || !phone || !address || !items || !totalAmount) {
+  // Multipart FormData (used by checkout for the receipt image) delivers
+  // items/amounts as strings — normalize before validating.
+  let itemsParsed: any = items;
+  if (typeof itemsParsed === "string") {
+    try {
+      itemsParsed = JSON.parse(itemsParsed);
+    } catch {
+      throw new AppError("Invalid items format", 400);
+    }
+  }
+  const total = typeof totalAmount === "string" ? Number(totalAmount) : totalAmount;
+  const paymentTotal = typeof paymentAmount === "string" ? Number(paymentAmount) : paymentAmount;
+
+  if (!customerName || !email || !phone || !address || !itemsParsed || !total) {
     throw new AppError("Missing required fields: customerName, email, phone, address, items, totalAmount", 400);
   }
 
-  if (!Array.isArray(items) || items.length === 0) {
+  if (!Array.isArray(itemsParsed) || itemsParsed.length === 0) {
     throw new AppError("Order must have at least one item", 400);
   }
 
   // If any payment field is provided, validate all required payment fields
-  const hasPaymentFields = paymentMethod || senderName || senderNumber || proofImageUrl || paymentAmount;
+  const hasPaymentFields = paymentMethod || senderName || senderNumber || proofImageUrl || paymentTotal;
   if (hasPaymentFields) {
-    if (!paymentMethod || !senderName || !senderNumber || !proofImageUrl || !paymentAmount) {
+    if (!paymentMethod || !senderName || !senderNumber || !proofImageUrl || !paymentTotal) {
       throw new AppError("Missing required payment fields: paymentMethod, senderName, senderNumber, proofImageUrl, paymentAmount", 400);
     }
     if (!Object.values(PaymentMethod).includes(paymentMethod)) {
@@ -81,7 +94,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     phone,
     address,
     city,
-    items: items.map((item: any) => ({
+    items: itemsParsed.map((item: any) => ({
       productId: item.productId,
       productName: item.productName || item.name,
       unitPrice: item.unitPrice || item.price,
@@ -89,7 +102,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       size: item.size,
       quantity: item.quantity || item.qty || 1,
     })),
-    totalAmount,
+    totalAmount: total,
     userId,
     notes,
     // Pass payment data if provided
@@ -99,7 +112,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       senderAccount: senderAccount ?? null,
       senderNumber,
       proofImageUrl: proofImageUrl!,
-      amount: paymentAmount,
+      amount: paymentTotal,
       notes: paymentNotes,
     } : undefined,
   });
