@@ -111,5 +111,5 @@ function BrandLogo() {
   const [failed, setFailed] = useState(false);
   return failed
     ? <span className="font-marcellus text-2xl tracking-[0.16em]" style={{ color: "var(--rose-deep)" }}>ESIA</span>
-    : <img src="/logo.png" alt="ESIA" className="max-h-16 max-w-[150px] object-contain" onError={() => setFailed(true)} />;
+    : <img src="/logo.png?v=3" alt="ESIA" className="max-h-16 max-w-[150px] object-contain" onError={() => setFailed(true)} />;
 }
