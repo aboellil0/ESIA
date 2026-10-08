@@ -14,7 +14,6 @@ export interface CatalogImage {
   id: number;
   imageUrl: string;
   sortOrder: number;
-  isMain: boolean;
 }
 
 export interface CatalogProduct {
@@ -47,15 +46,15 @@ export function mapBackendProduct(product: any): CatalogProduct | null {
       id: Number(image?.id ?? index),
       imageUrl: String(typeof image === "string" ? image : image?.imageUrl ?? image?.url ?? ""),
       sortOrder: Number(image?.sortOrder ?? index),
-      isMain: Boolean(image?.isMain ?? image?.is_main),
     }))
     .filter((image: CatalogImage) => Boolean(image.imageUrl))
     .sort((a: CatalogImage, b: CatalogImage) => a.sortOrder - b.sortOrder);
 
+  // Cover (outside/card image) lives on the product itself; fall back to first gallery image.
   const mainImage =
+    product.coverImageUrl ??
     product.mainImageUrl ??
     product.mainImage?.imageUrl ??
-    images.find((image) => image.isMain)?.imageUrl ??
     images[0]?.imageUrl ??
     "";
   const category = product.category ?? {};

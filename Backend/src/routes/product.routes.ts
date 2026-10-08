@@ -6,40 +6,43 @@ import {
   createProduct,
   getAllProducts,
   getProductById,
+  updateProduct,
+  deleteProduct,
+  uploadProductCover,
+  removeProductCover,
   addProductImages,
   removeProductImage,
   reorderProductImages,
-  setMainProductImage,
 } from "../controllers/product.controller";
 
 const router = Router();
 
-// Public reads — list and detail (detail includes sorted images, main is isMain)
+// Public reads — list (cover + basics for card) and detail (cover + full file gallery)
 router.get("/", getAllProducts);
 router.get("/:id", getProductById);
 
 // Admin writes — upload.any() + processMedia (compress, validate 3MB image) before controller
-// Accepts multipart/form-data files fieldname "images" / "files" and JSON body fields.
-// Also accepts pure JSON with images: [{imageUrl}] for backward compat.
+// Gallery images are FILES ONLY: fieldnames image[0], image[1], ... (or images/files).
+// Cover image is a SINGLE FILE on the product itself: fieldname cover (or coverImage).
 router.post("/", protect, adminOnly, upload.any(), processMedia, createProduct);
+router.patch("/:id", protect, adminOnly, upload.any(), processMedia, updateProduct);
+router.delete("/:id", protect, adminOnly, deleteProduct);
 
-// ─── Media management for existing product ───
-// Add images to existing product
+// Cover image (single file on the product row)
+router.post("/:id/cover", protect, adminOnly, upload.any(), processMedia, uploadProductCover);
+router.delete("/:id/cover", protect, adminOnly, removeProductCover);
+
+// Gallery management for existing product (files only, ordered by sort_order)
 router.post("/:id/images", protect, adminOnly, upload.any(), processMedia, addProductImages);
 // Alternative alias
 router.post("/:id/media", protect, adminOnly, upload.any(), processMedia, addProductImages);
 
-// Remove image by order or imageId
+// Remove gallery image by sort order or image id
 router.delete("/:id/images/:order", protect, adminOnly, removeProductImage);
 router.delete("/:id/media", protect, adminOnly, removeProductImage);
 
-// Reorder images: body { currentOrder, newOrder }
+// Reorder gallery images: body { currentOrder, newOrder }
 router.put("/:id/images/reorder", protect, adminOnly, reorderProductImages);
 router.put("/:id/media/reorder", protect, adminOnly, reorderProductImages);
-
-// Set main image for card (isMain attribute) — is_main boolean + mainImageUrl synced
-router.patch("/:id/images/main", protect, adminOnly, setMainProductImage);
-router.put("/:id/images/main", protect, adminOnly, setMainProductImage);
-router.patch("/:id/media/main", protect, adminOnly, setMainProductImage);
 
 export default router;

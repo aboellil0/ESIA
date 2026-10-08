@@ -82,7 +82,6 @@ export interface BackendProductImage {
   id: number;
   imageUrl: string;
   sortOrder: number;
-  isMain: boolean;
 }
 
 export interface BackendProductCard {
@@ -94,8 +93,7 @@ export interface BackendProductCard {
   oldPrice: number | null;
   tag: string | null;
   isActive: boolean;
-  mainImageUrl: string | null;
-  mainImage: BackendProductImage | null;
+  coverImageUrl: string | null;
   images: BackendProductImage[];
   colors: BackendProductColor[];
   sizes: BackendProductSize[];

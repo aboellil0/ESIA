@@ -30,9 +30,9 @@ export class Product {
   @Expose()
   tag!: ProductTag;
 
-  @Column({ name: "main_image_url", type: "text", nullable: true })
+  @Column({ name: "cover_image_url", type: "text", nullable: true })
   @Expose()
-  mainImageUrl!: string | null;
+  coverImageUrl!: string | null;
 
   @Column({ name: "default_shape", type: "enum", enum: DefaultShape, nullable: true })
   @Expose()

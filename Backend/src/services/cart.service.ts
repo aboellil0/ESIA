@@ -40,7 +40,7 @@ interface CartItemWithProduct {
     id: number;
     name: string;
     price: number;
-    mainImageUrl: string | null;
+    coverImageUrl: string | null;
     colors: Array<{ id: number; nameEn: string; nameAr: string | null; hexCode: string | null }>;
     sizes: string[];
   } | null;
@@ -147,7 +147,7 @@ class CartServiceImpl {
         colorId: input.colorId ?? null,
         size: input.size ? (input.size as ProductSize) : null,
         quantity: input.quantity,
-        productImage: product.mainImageUrl ?? null,
+        productImage: product.coverImageUrl ?? null,
       });
       await this.cartItemRepo.save(cartItem);
     }
@@ -258,7 +258,7 @@ class CartServiceImpl {
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                mainImageUrl: product.mainImageUrl,
+                coverImageUrl: product.coverImageUrl,
                 colors: product.colors?.map((c) => ({
                   id: c.id,
                   nameEn: c.nameEn,

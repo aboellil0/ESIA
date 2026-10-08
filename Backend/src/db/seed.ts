@@ -70,7 +70,7 @@ async function seed() {
         oldPrice: 1599,
         shortDescription: "Demo dress - puff sleeves default shape",
         isActive: true,
-        mainImageUrl: null,
+        coverImageUrl: null,
       });
       const saved = await prodRepo.save(product);
       console.log("Product created:", saved.id);

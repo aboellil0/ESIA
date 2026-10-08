@@ -61,7 +61,7 @@ function mapCart(data: any): CartItem[] {
     colorNameAr: String(item.color?.nameAr ?? ""),
     colorHex: String(item.color?.hexCode ?? ""),
     colorId: item.colorId ? Number(item.colorId) : undefined,
-    image: String(item.productImage ?? item.product?.mainImageUrl ?? ""),
+    image: String(item.productImage ?? item.product?.coverImageUrl ?? ""),
     qty: Number(item.quantity ?? 0),
   }));
 }

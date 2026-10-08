@@ -64,6 +64,8 @@ export default function ProductDetail({
         setSelectedSize(mapped.sizes.find((size) => !mapped.unavailableSizes.includes(size)) ?? "");
         setActiveImage(0);
         setSelectedColor(0);
+        setQuantity(1);
+        setCartMessage(null);
       })
       .catch((loadError) => {
         if (current) {
@@ -80,9 +82,15 @@ export default function ProductDetail({
     };
   }, [productId, retryKey]);
 
-  const images = useMemo(() => product?.images.map((image) => image.imageUrl) ?? [], [product]);
+  // Gallery: cover (outside image) first, then gallery files, de-duplicated.
+  const images = useMemo(() => {
+    const gallery = (product?.images.map((image) => image.imageUrl) ?? []).filter(Boolean);
+    const cover = product?.img;
+    return cover ? [cover, ...gallery.filter((src) => src !== cover)] : gallery;
+  }, [product]);
   const color = product?.colors[selectedColor] ?? product?.colors[0];
-  const image = images[activeImage] ?? color?.img ?? product?.img ?? "";
+  const image = images[activeImage] ?? "";
+  const tagLabel = product?.tag === "new" ? "جديد" : product?.tag === "best_seller" ? "الأكثر مبيعاً" : null;
   const availableSizes = product ? product.sizes.filter((size) => !product.unavailableSizes.includes(size)) : [];
   const globalColor = colors.find((item) =>
     (color?.hexCode && item.hexCode.toLowerCase() === color.hexCode.toLowerCase()) ||
@@ -127,10 +135,12 @@ export default function ProductDetail({
           <>
             <div className="grid gap-8 lg:grid-cols-2">
               <div>
-                <div className="overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
+                <div className="relative overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
                   {image ? <img src={image} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
+                  {tagLabel && <span className="absolute end-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "var(--rose-deep)" }}>{tagLabel}</span>}
+                  {!product.isActive && <span className="absolute bottom-3 start-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white">غير متاح حالياً</span>}
                 </div>
-                {images.length > 1 && <div className="mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={product.images[index]?.id ?? index} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+                {images.length > 1 && <div className="mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
               </div>
               <div className="rounded-3xl bg-white p-6 md:p-8" style={{ border: "1px solid var(--line)" }}>
                 {product.categoryName && <p className="text-xs" style={{ color: "var(--gold)" }}>{product.categoryName}</p>}

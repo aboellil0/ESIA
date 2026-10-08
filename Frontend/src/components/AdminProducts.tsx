@@ -1,48 +1,64 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { getApiErrorMessage } from "../lib/api";
 import { useCategories } from "../lib/categoryContext";
 import { productsService } from "../services/products";
 import { colorsService } from "../services/colors";
 
 type PaletteColor = { id: number; nameEn: string; nameAr: string; hexCode: string };
-type ProductImage = { id: number; imageUrl: string; sortOrder: number; isMain: boolean };
+type ProductImage = { id: number; imageUrl: string; sortOrder: number };
 type ProductRow = {
   id: number;
   name: string;
   price: number;
-  mainImageUrl?: string | null;
-  category?: { name?: string; slug?: string } | null;
+  oldPrice?: number | null;
+  tag?: string | null;
+  defaultShape?: string | null;
+  shortDescription?: string | null;
+  isActive?: boolean;
+  categoryId?: number;
+  coverImageUrl?: string | null;
+  category?: { id?: number; name?: string; slug?: string } | null;
   colors?: PaletteColor[];
   sizes?: Array<{ id?: number; size: string; isAvailable?: boolean }>;
   images?: ProductImage[];
-  shortDescription?: string | null;
 };
 
 const SIZES = ["S", "M", "L", "XL"];
 const inputClass = "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63]";
 const btnClass = "rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50";
 
+const emptyForm = {
+  name: "",
+  categoryId: "",
+  price: "",
+  oldPrice: "",
+  shortDescription: "",
+  tag: "none",
+  shape: "",
+  isActive: true,
+};
+
 export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (view: string) => void; onLogout: () => void }) {
   const { categories } = useCategories();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [selected, setSelected] = useState<ProductRow | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const formRef = useRef<HTMLElement | null>(null);
 
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [price, setPrice] = useState("");
-  const [oldPrice, setOldPrice] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
-  const [tag, setTag] = useState("none");
-  const [shape, setShape] = useState("");
+  const [form, setForm] = useState(emptyForm);
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [globalPalette, setGlobalPalette] = useState<PaletteColor[]>([]);
+
+  const setField = (key: keyof typeof emptyForm, value: string | boolean) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const palette = useMemo(() => {
     // Primary source: global /colors palette (works even with zero products).
@@ -68,12 +84,9 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
       setGlobalPalette(Array.isArray(paletteColors) ? paletteColors : []);
       const rows = Array.isArray(data) ? data as ProductRow[] : [];
       setProducts(rows);
-      if (selected) {
-        const current = rows.find((item) => item.id === selected.id);
-        if (current) {
-          const full = await productsService.byId(current.id);
-          setSelected(full as ProductRow);
-        }
+      if (editingId !== null) {
+        const current = rows.find((item) => item.id === editingId);
+        if (current) setSelected(await productsService.byId(current.id) as ProductRow);
       }
     } catch (loadError) {
       setProducts([]);
@@ -81,15 +94,56 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     } finally {
       setLoading(false);
     }
-  }, [selected?.id]);
+  }, [editingId]);
 
   useEffect(() => { void loadProducts(); }, [loadProducts]);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setSelectedColorIds([]);
+    setSelectedSizes(["S", "M", "L"]);
+    setImageFiles([]);
+    setCoverFile(null);
+    setNewImageFiles([]);
+  };
+
+  const startNew = () => {
+    resetForm();
+    setSelected(null);
+    setEditingId(null);
+    setError(null);
+    setNotice(null);
+  };
+
+  const fillFormFromProduct = (product: ProductRow) => {
+    setForm({
+      name: product.name ?? "",
+      categoryId: String(product.categoryId ?? product.category?.id ?? ""),
+      price: String(product.price ?? ""),
+      oldPrice: product.oldPrice !== null && product.oldPrice !== undefined ? String(product.oldPrice) : "",
+      shortDescription: product.shortDescription ?? "",
+      tag: product.tag ?? "none",
+      shape: product.defaultShape ?? "",
+      isActive: product.isActive !== false,
+    });
+    setSelectedColorIds((product.colors ?? []).map((c) => c.id).filter((id) => Number.isFinite(id)));
+    const sizes = (product.sizes ?? []).filter((s) => s.isAvailable !== false).map((s) => s.size);
+    setSelectedSizes(sizes.length ? sizes : []);
+    setImageFiles([]);
+    setCoverFile(null);
+    setNewImageFiles([]);
+  };
 
   const selectProduct = async (id: number) => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      setSelected(await productsService.byId(id) as ProductRow);
+      const full = await productsService.byId(id) as ProductRow;
+      setSelected(full);
+      setEditingId(full.id);
+      fillFormFromProduct(full);
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (loadError) {
       setError(getApiErrorMessage(loadError));
     } finally {
@@ -97,19 +151,18 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     }
   };
 
-  const makeIndexedForm = (files: File[], makeFirstMain: boolean) => {
-    const form = new FormData();
+  const makeGalleryForm = (files: File[]) => {
+    const formData = new FormData();
     files.forEach((file, index) => {
-      form.append("image[" + index + "]", file);
-      form.append("image[" + index + "].isMain", makeFirstMain && index === 0 ? "true" : "false");
+      formData.append("image[" + index + "]", file);
     });
-    return form;
+    return formData;
   };
 
-  const createProduct = async (event: FormEvent) => {
+  const submitProduct = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedColorIds.length) {
-      setError("اختر لوناً واحداً على الأقل من لوحة الألوان الموجودة في المنتجات.");
+      setError("اختر لوناً واحداً على الأقل من لوحة الألوان.");
       return;
     }
     if (!selectedSizes.length) {
@@ -120,26 +173,86 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     setError(null);
     setNotice(null);
     try {
-      const form = makeIndexedForm(imageFiles, true);
-      form.append("name", name.trim());
-      form.append("categoryId", categoryId);
-      form.append("price", price);
-      if (oldPrice) form.append("oldPrice", oldPrice);
-      form.append("shortDescription", shortDescription.trim());
-      form.append("tag", tag);
-      if (shape) form.append("defaultShape", shape);
-      form.append("colors", JSON.stringify(selectedColorIds));
-      form.append("sizes", JSON.stringify(selectedSizes.map((size) => ({ size, isAvailable: true }))));
-      await productsService.create(form);
-      setName("");
-      setPrice("");
-      setOldPrice("");
-      setShortDescription("");
-      setImageFiles([]);
-      setNotice("تم إنشاء المنتج.");
+      const formData = new FormData();
+      formData.append("name", form.name.trim());
+      formData.append("categoryId", form.categoryId);
+      formData.append("price", form.price);
+      if (form.oldPrice) formData.append("oldPrice", form.oldPrice);
+      formData.append("shortDescription", form.shortDescription.trim());
+      formData.append("tag", form.tag);
+      if (form.shape) formData.append("defaultShape", form.shape);
+      formData.append("isActive", form.isActive ? "true" : "false");
+      formData.append("colors", JSON.stringify(selectedColorIds));
+      formData.append("sizes", JSON.stringify(selectedSizes.map((size) => ({ size, isAvailable: true }))));
+
+      if (editingId !== null) {
+        const updated = await productsService.update(editingId, formData);
+        setSelected(updated as ProductRow);
+        fillFormFromProduct(updated as ProductRow);
+        setNotice("تم حفظ التعديلات.");
+      } else {
+        imageFiles.forEach((file, index) => {
+          formData.append("image[" + index + "]", file);
+        });
+        if (coverFile) formData.append("cover", coverFile);
+        await productsService.create(formData);
+        startNew();
+        setNotice("تم إنشاء المنتج.");
+      }
       await loadProducts();
-    } catch (createError) {
-      setError(getApiErrorMessage(createError));
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteProduct = async () => {
+    if (editingId === null || !window.confirm("حذف هذا المنتج نهائياً؟ لا يمكن التراجع.")) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await productsService.remove(editingId);
+      startNew();
+      setNotice("تم حذف المنتج.");
+      await loadProducts();
+    } catch (removeError) {
+      setError(getApiErrorMessage(removeError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadCover = async () => {
+    if (editingId === null || !coverFile) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await productsService.uploadCover(editingId, coverFile);
+      setSelected(updated as ProductRow);
+      setCoverFile(null);
+      setNotice("تم تحديث صورة الغلاف.");
+      await loadProducts();
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteCover = async () => {
+    if (editingId === null || !window.confirm("إزالة صورة الغلاف؟")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await productsService.removeCover(editingId);
+      setSelected(updated as ProductRow);
+      setNotice("تمت إزالة صورة الغلاف.");
+      await loadProducts();
+    } catch (removeError) {
+      setError(getApiErrorMessage(removeError));
     } finally {
       setBusy(false);
     }
@@ -151,7 +264,7 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     setError(null);
     setNotice(null);
     try {
-      const updated = await productsService.addImages(selected.id, makeIndexedForm(newImageFiles, false));
+      const updated = await productsService.addImages(selected.id, makeGalleryForm(newImageFiles));
       setSelected(updated as ProductRow);
       setNewImageFiles([]);
       setNotice("تمت إضافة الصور.");
@@ -178,21 +291,6 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     }
   };
 
-  const setMainImage = async (image: ProductImage) => {
-    if (!selected) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setSelected(await productsService.setMainImage(selected.id, image.id) as ProductRow);
-      setNotice("تم تعيين الصورة الرئيسية.");
-      await loadProducts();
-    } catch (saveError) {
-      setError(getApiErrorMessage(saveError));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const moveImage = async (image: ProductImage, direction: -1 | 1) => {
     if (!selected) return;
     const next = image.sortOrder + direction;
@@ -213,6 +311,9 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
   const toggleSize = (size: string) => setSelectedSizes((values) => values.includes(size) ? values.filter((value) => value !== size) : [...values, size]);
   const toggleColor = (id: number) => setSelectedColorIds((values) => values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
 
+  const coverPreview = (selected?.coverImageUrl ?? selected?.images?.[0]?.imageUrl) || null;
+  const isEditing = editingId !== null;
+
   return (
     <main className="min-h-screen" style={{ background: "var(--ivory)" }}>
       <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b bg-white px-5 py-4" style={{ borderColor: "var(--line)" }}>
@@ -229,59 +330,95 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
         {notice && <p role="status" className="rounded-xl bg-green-50 p-4 text-sm text-green-800">{notice}</p>}
         {loading ? <p role="status" className="py-12 text-center">جارٍ تحميل المنتجات...</p> : (
           <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
-              <h1 className="mb-4 text-xl font-bold">المنتجات الحالية</h1>
+            <section className="h-fit rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h1 className="text-xl font-bold">المنتجات الحالية</h1>
+                <button type="button" onClick={startNew} className={btnClass + " border"} disabled={busy}>+ منتج جديد</button>
+              </div>
               {error ? null : products.length === 0 ? <p className="py-8 text-center text-sm text-gray-500">لا توجد منتجات بعد.</p> : (
-                <div className="space-y-2">{products.map((product) => (
-                  <button key={product.id} type="button" onClick={() => void selectProduct(product.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-right" style={{ borderColor: selected?.id === product.id ? "var(--rose-deep)" : "var(--line)" }}>
-                    {product.mainImageUrl ? <img src={product.mainImageUrl} alt="" className="h-14 w-12 rounded-lg object-cover" /> : <span className="h-14 w-12 rounded-lg bg-[#f5e9e8]" />}
-                    <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{product.name}</span><span className="text-xs text-gray-500">{product.category?.name ?? product.category?.slug} · {Number(product.price).toLocaleString()} ج.م</span></span>
-                  </button>
-                ))}</div>
+                <div className="space-y-2">{products.map((product) => {
+                  const thumb = product.coverImageUrl ?? product.images?.[0]?.imageUrl;
+                  return (
+                    <button key={product.id} type="button" onClick={() => void selectProduct(product.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-right" style={{ borderColor: editingId === product.id ? "var(--rose-deep)" : "var(--line)" }}>
+                      {thumb ? <img src={thumb} alt="" className="h-14 w-12 rounded-lg object-cover" /> : <span className="h-14 w-12 rounded-lg bg-[#f5e9e8]" />}
+                      <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{product.name}</span><span className="text-xs text-gray-500">{product.category?.name ?? product.category?.slug} · {Number(product.price).toLocaleString()} ج.م{product.isActive === false ? " · موقوف" : ""}</span></span>
+                    </button>
+                  );
+                })}</div>
               )}
             </section>
 
             <div className="space-y-6">
-              <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
-                <h2 className="mb-4 text-xl font-bold">إضافة منتج</h2>
-                <form onSubmit={createProduct} className="grid gap-3 md:grid-cols-2">
-                  <label className="text-sm">اسم المنتج<input required minLength={2} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} /></label>
-                  <label className="text-sm">الفئة<select required value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className={inputClass}><option value="">اختر الفئة</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                  <label className="text-sm">السعر<input required type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className={inputClass} /></label>
-                  <label className="text-sm">السعر السابق (اختياري)<input type="number" min="0" step="0.01" value={oldPrice} onChange={(event) => setOldPrice(event.target.value)} className={inputClass} /></label>
-                  <label className="text-sm">الشارة<select value={tag} onChange={(event) => setTag(event.target.value)} className={inputClass}><option value="none">بدون</option><option value="new">جديد</option><option value="best_seller">الأكثر مبيعاً</option></select></label>
-                  <label className="text-sm">الشكل<select value={shape} onChange={(event) => setShape(event.target.value)} className={inputClass}><option value="">بدون</option><option value="puff_sleeves">أكمام منفوشة</option><option value="layers">طبقات</option><option value="bow">فيونكة</option><option value="long">طويل</option><option value="abaya">عباية</option><option value="circular">دائري</option></select></label>
-                  <label className="text-sm md:col-span-2">وصف قصير<textarea value={shortDescription} onChange={(event) => setShortDescription(event.target.value)} className={inputClass} rows={3} /></label>
-                  <fieldset className="md:col-span-2"><legend className="mb-2 text-sm font-semibold">الألوان</legend>{palette.length ? <div className="flex flex-wrap gap-2">{palette.map((color) => <label key={color.id} className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: "var(--line)" }}><input type="checkbox" checked={selectedColorIds.includes(color.id)} onChange={() => toggleColor(color.id)} /><span className="h-4 w-4 rounded-full border" style={{ background: color.hexCode }} />{color.nameAr}</label>)}</div> : <p className="text-sm text-amber-700">لا توجد ألوان منتجات متاحة للاختيار. أضف منتجاً أولاً أو جهّز لوحة ProductColor في البيانات.</p>}</fieldset>
+              <section ref={formRef} className="scroll-mt-24 rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-xl font-bold">{isEditing ? "تعديل المنتج" + (selected ? ": " + selected.name : "") : "إضافة منتج"}</h2>
+                  {isEditing && (
+                    <div className="flex gap-2">
+                      <button type="button" onClick={startNew} className={btnClass + " border"} disabled={busy}>إلغاء التعديل</button>
+                      <button type="button" onClick={() => void deleteProduct()} className={btnClass + " border text-red-700"} disabled={busy}>حذف المنتج</button>
+                    </div>
+                  )}
+                </div>
+                <form onSubmit={submitProduct} className="grid gap-3 md:grid-cols-2">
+                  <label className="text-sm">اسم المنتج<input required minLength={2} value={form.name} onChange={(event) => setField("name", event.target.value)} className={inputClass} /></label>
+                  <label className="text-sm">الفئة<select required value={form.categoryId} onChange={(event) => setField("categoryId", event.target.value)} className={inputClass}><option value="">اختر الفئة</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+                  <label className="text-sm">السعر<input required type="number" min="0" step="0.01" value={form.price} onChange={(event) => setField("price", event.target.value)} className={inputClass} /></label>
+                  <label className="text-sm">السعر السابق (اختياري)<input type="number" min="0" step="0.01" value={form.oldPrice} onChange={(event) => setField("oldPrice", event.target.value)} className={inputClass} /></label>
+                  <label className="text-sm">الشارة<select value={form.tag} onChange={(event) => setField("tag", event.target.value)} className={inputClass}><option value="none">بدون</option><option value="new">جديد</option><option value="best_seller">الأكثر مبيعاً</option></select></label>
+                  <label className="text-sm">الشكل<select value={form.shape} onChange={(event) => setField("shape", event.target.value)} className={inputClass}><option value="">بدون</option><option value="puff_sleeves">أكمام منفوشة</option><option value="layers">طبقات</option><option value="bow">فيونكة</option><option value="long">طويل</option><option value="abaya">عباية</option><option value="circular">دائري</option></select></label>
+                  <label className="text-sm md:col-span-2">وصف قصير<textarea value={form.shortDescription} onChange={(event) => setField("shortDescription", event.target.value)} className={inputClass} rows={3} /></label>
+                  <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={form.isActive} onChange={(event) => setField("isActive", event.target.checked)} />منتج نشط (يظهر في المتجر)</label>
+                  <fieldset className="md:col-span-2"><legend className="mb-2 text-sm font-semibold">الألوان</legend>{palette.length ? <div className="flex flex-wrap gap-2">{palette.map((color) => <label key={color.id} className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: "var(--line)" }}><input type="checkbox" checked={selectedColorIds.includes(color.id)} onChange={() => toggleColor(color.id)} /><span className="h-4 w-4 rounded-full border" style={{ background: color.hexCode }} />{color.nameAr}</label>)}</div> : <p className="text-sm text-amber-700">لا توجد ألوان متاحة. أضف ألواناً من صفحة الفئات والألوان.</p>}</fieldset>
                   <fieldset className="md:col-span-2"><legend className="mb-2 text-sm font-semibold">المقاسات</legend><div className="flex gap-4">{SIZES.map((size) => <label key={size} className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={selectedSizes.includes(size)} onChange={() => toggleSize(size)} />{size}</label>)}</div></fieldset>
-                  <label className="text-sm md:col-span-2">صور المنتج<input type="file" accept="image/*" multiple onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">يتم رفع الصور مباشرة مع إنشاء المنتج.</span></label>
-                  <button disabled={busy || !categories.length || !palette.length} className={btnClass + " md:col-span-2 text-white"} style={{ background: "var(--rose-deep)" }}>{busy ? "جارٍ الحفظ..." : "إنشاء المنتج"}</button>
+                  {!isEditing && (
+                    <>
+                      <label className="text-sm">صورة الغلاف (الخارجية)<input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">صورة واحدة تظهر في البطاقات. إن لم تختر، تُستخدم أول صورة من المعرض.</span></label>
+                      <label className="text-sm">صور المعرض<input type="file" accept="image/*" multiple onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">يتم رفع الصور مباشرة مع إنشاء المنتج.</span></label>
+                    </>
+                  )}
+                  <button disabled={busy || !categories.length || !palette.length} className={btnClass + " md:col-span-2 text-white"} style={{ background: "var(--rose-deep)" }}>{busy ? "جارٍ الحفظ..." : isEditing ? "حفظ التعديلات" : "إنشاء المنتج"}</button>
                 </form>
               </section>
 
-              {selected && (
-                <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
-                  <h2 className="text-xl font-bold">صور: {selected.name}</h2>
-                  <p className="mb-4 mt-1 text-sm text-gray-600">يوفر backend إدارة الصور فقط للمنتج الموجود. لا توجد مسارات لتعديل الاسم أو السعر أو حذف المنتج.</p>
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    <input type="file" accept="image/*" multiple onChange={(event) => setNewImageFiles(Array.from(event.target.files ?? []))} className="min-w-0 flex-1 rounded-xl border p-2 text-sm" />
-                    <button type="button" disabled={busy || !newImageFiles.length} onClick={() => void addImages()} className={btnClass + " text-white"} style={{ background: "var(--rose-deep)" }}>رفع الصور</button>
-                  </div>
-                  {!selected.images?.length ? <p className="py-6 text-center text-sm text-gray-500">لا توجد صور مسجلة لهذا المنتج.</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{[...selected.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => (
-                    <div key={image.id} className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--line)" }}>
-                      <img src={image.imageUrl} alt="" className="h-44 w-full object-cover" />
-                      <div className="flex flex-wrap items-center justify-between gap-1 p-2 text-xs">
-                        <span>{image.isMain ? "الصورة الرئيسية" : "ترتيب " + (image.sortOrder + 1)}</span>
-                        <div className="flex gap-1">
-                          <button type="button" disabled={busy || image.isMain} onClick={() => void setMainImage(image)} title="تعيين كرئيسية">★</button>
-                          <button type="button" disabled={busy || image.sortOrder === 0} onClick={() => void moveImage(image, -1)} title="تحريك للأمام">←</button>
-                          <button type="button" disabled={busy || image.sortOrder === selected.images!.length - 1} onClick={() => void moveImage(image, 1)} title="تحريك للخلف">→</button>
-                          <button type="button" disabled={busy} onClick={() => void removeImage(image)} className="text-red-700">حذف</button>
+              {selected && isEditing && (
+                <>
+                  <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
+                    <h2 className="mb-1 text-xl font-bold">صورة الغلاف</h2>
+                    <p className="mb-4 text-sm text-gray-600">الصورة الخارجية التي تظهر في بطاقات المتجر.</p>
+                    <div className="flex flex-wrap items-center gap-4">
+                      {coverPreview ? <img src={coverPreview} alt="الغلاف" className="h-36 w-28 rounded-xl border object-cover" style={{ borderColor: "var(--line)" }} /> : <span className="flex h-36 w-28 items-center justify-center rounded-xl bg-[#f5e9e8] text-xs text-gray-500">لا يوجد غلاف</span>}
+                      <div className="min-w-[220px] flex-1 space-y-2">
+                        <input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} className="w-full rounded-xl border p-2 text-sm" />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" disabled={busy || !coverFile} onClick={() => void uploadCover()} className={btnClass + " text-white"} style={{ background: "var(--rose-deep)" }}>رفع الغلاف</button>
+                          {selected.coverImageUrl && <button type="button" disabled={busy} onClick={() => void deleteCover()} className={btnClass + " border text-red-700"}>إزالة الغلاف</button>}
                         </div>
                       </div>
                     </div>
-                  ))}</div>}
-                </section>
+                  </section>
+
+                  <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
+                    <h2 className="text-xl font-bold">صور المعرض: {selected.name}</h2>
+                    <p className="mb-4 mt-1 text-sm text-gray-600">صور الملفات فقط، مرتبة حسب الترتيب.</p>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <input type="file" accept="image/*" multiple onChange={(event) => setNewImageFiles(Array.from(event.target.files ?? []))} className="min-w-0 flex-1 rounded-xl border p-2 text-sm" />
+                      <button type="button" disabled={busy || !newImageFiles.length} onClick={() => void addImages()} className={btnClass + " text-white"} style={{ background: "var(--rose-deep)" }}>رفع الصور</button>
+                    </div>
+                    {!selected.images?.length ? <p className="py-6 text-center text-sm text-gray-500">لا توجد صور مسجلة لهذا المنتج.</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{[...selected.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => (
+                      <div key={image.id} className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--line)" }}>
+                        <img src={image.imageUrl} alt="" className="h-44 w-full object-cover" />
+                        <div className="flex flex-wrap items-center justify-between gap-1 p-2 text-xs">
+                          <span>ترتيب {image.sortOrder + 1}</span>
+                          <div className="flex gap-1">
+                            <button type="button" disabled={busy || image.sortOrder === 0} onClick={() => void moveImage(image, -1)} title="تحريك للأمام">←</button>
+                            <button type="button" disabled={busy || image.sortOrder === selected.images!.length - 1} onClick={() => void moveImage(image, 1)} title="تحريك للخلف">→</button>
+                            <button type="button" disabled={busy} onClick={() => void removeImage(image)} className="text-red-700">حذف</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}</div>}
+                  </section>
+                </>
               )}
             </div>
           </div>
