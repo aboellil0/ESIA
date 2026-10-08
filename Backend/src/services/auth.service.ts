@@ -179,7 +179,7 @@ export const AuthService = {
       tokenExpiration: new Date(decoded.exp * 1000).toISOString(),
       refreshTokenExpiration: refreshDoc.expiresAt.toISOString(),
       deviceId,
-      user: { id: user.id, name: user.name, email: user.email, role: UserRole.USER },
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, isVerified: true, role: UserRole.USER },
     };
   },
 

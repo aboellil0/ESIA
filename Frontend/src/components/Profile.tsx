@@ -58,7 +58,58 @@ export default function Profile({
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
 
-  const initial = (user.name || user.email || "؟").trim().charAt(0).toUpperCase();
+  // Fresh server data is the single source of truth. The cached session user
+  // (localStorage) can be stale — e.g. missing isVerified/phone after login —
+  // which is why the page could wrongly show "unverified" or an empty phone.
+  const [fresh, setFresh] = useState<{
+    name: string;
+    email: string;
+    phone?: string | null;
+    isVerified?: boolean;
+  } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const applyFreshUser = useCallback((data: any) => {
+    const u = data?.user ?? data;
+    if (!u || !u.email) return;
+    const next = {
+      name: String(u.name ?? String(u.email).split("@")[0]),
+      email: String(u.email),
+      phone: (u.phone ?? null) as string | null,
+      isVerified: u.isVerified as boolean | undefined,
+    };
+    setFresh(next);
+    setName(next.name);
+    setPhone(next.phone ?? "");
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      applyFreshUser(await authService.profile());
+      // Sync the global session (header, cached user) with server truth.
+      if (onRefreshUser) await onRefreshUser();
+    } catch (loadError) {
+      setProfileError(getApiErrorMessage(loadError));
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [applyFreshUser, onRefreshUser]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  const shown = {
+    name: fresh?.name ?? user.name,
+    email: fresh?.email ?? user.email,
+    phone: fresh?.phone ?? user.phone ?? null,
+    isVerified: fresh?.isVerified ?? user.isVerified,
+  };
+
+  const initial = (shown.name || shown.email || "؟").trim().charAt(0).toUpperCase();
 
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -99,11 +150,9 @@ export default function Profile({
         name: name.trim(),
         phone: phone.trim(),
       });
-      const updated = result?.user ?? result;
-      if (updated) {
-        setName(updated.name ?? name.trim());
-        setPhone(updated.phone ?? phone.trim());
-      }
+      // Server response is truth: refresh displayed values from it so the
+      // form can never show a stale phone/name after saving.
+      applyFreshUser(result);
       if (onRefreshUser) await onRefreshUser();
       setNotice("تم حفظ بياناتك بنجاح.");
     } catch (saveError) {
@@ -118,7 +167,7 @@ export default function Profile({
     setNotice(null);
     setError(null);
     try {
-      await authService.resendVerification(user.email);
+      await authService.resendVerification(shown.email);
       setNotice("تم إرسال رابط التأكيد إلى بريدك. تحققي من صندوق الوارد.");
     } catch (resendError) {
       setError(getApiErrorMessage(resendError));
@@ -190,12 +239,12 @@ export default function Profile({
           {initial}
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-bold">{user.name}</h2>
+          <h2 className="truncate text-lg font-bold">{profileLoading && !fresh ? "جارٍ التحميل..." : shown.name}</h2>
           <p className="truncate text-sm text-gray-600" dir="ltr">
-            {user.email}
+            {shown.email}
           </p>
           <p className="mt-1 text-xs">
-            {user.isVerified ? (
+            {shown.isVerified ? (
               <span className="rounded-full bg-green-50 px-3 py-1 font-semibold text-green-800">
                 البريد مؤكد
               </span>
@@ -207,6 +256,15 @@ export default function Profile({
           </p>
         </div>
       </section>
+
+      {profileError && (
+        <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          {profileError}
+          <button type="button" onClick={() => void loadProfile()} className="ms-3 underline">
+            إعادة المحاولة
+          </button>
+        </p>
+      )}
 
       <nav className="mt-5 flex gap-2">
         <TabButton active={tab === "info"} onClick={() => setTab("info")}>
@@ -253,12 +311,12 @@ export default function Profile({
             </label>
             <label className="text-sm sm:col-span-2">
               البريد الإلكتروني
-              <input value={user.email} readOnly disabled dir="ltr" className={inputClass + " opacity-60"} />
+              <input value={shown.email} readOnly disabled dir="ltr" className={inputClass + " opacity-60"} />
             </label>
             <div className="sm:col-span-2">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || profileLoading}
                 className="rounded-xl px-6 py-3 font-bold text-white disabled:opacity-50"
                 style={{ background: "var(--rose-deep)" }}
               >
@@ -267,7 +325,7 @@ export default function Profile({
             </div>
           </form>
 
-          {!user.isVerified && (
+          {!shown.isVerified && (
             <div className="mt-5 rounded-2xl bg-[#fbf5ef] p-4 text-sm">
               <p className="font-semibold">بريدك غير مؤكد بعد.</p>
               <p className="mt-1 text-gray-600">أكّدي بريدك لتتمكني من الطلب وتتبع الشحنات.</p>
