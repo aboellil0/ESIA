@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { CatalogProduct } from "../data/catalog";
 import { useCategories } from "../lib/categoryContext";
-import logoUrl from "../assets/logo.png";
 
 interface ChromeProps {
   view: string;
@@ -112,5 +111,5 @@ function BrandLogo() {
   const [failed, setFailed] = useState(false);
   return failed
     ? <span className="font-marcellus text-2xl tracking-[0.16em]" style={{ color: "var(--rose-deep)" }}>ESIA</span>
-    : <img src={logoUrl} alt="ESIA" className="max-h-16 max-w-[150px] object-contain" onError={() => setFailed(true)} />;
+    : <img src="/logo.png" alt="ESIA" className="max-h-16 max-w-[150px] object-contain" onError={() => setFailed(true)} />;
 }
