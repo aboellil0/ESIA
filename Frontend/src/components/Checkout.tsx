@@ -81,6 +81,17 @@ export default function Checkout({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
+
+  // Payment config missing (owner never set VITE_TRANSFER_NUMBER) blocks
+  // ordering entirely — keep the failure visible instead of a "dead" button.
+  const paymentUnavailable = !transferNumber;
+
+  // Always bring submit errors into view: the button sits at the bottom of a
+  // long page while the banner renders at the top.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
 
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -98,7 +109,7 @@ export default function Checkout({
       return;
     }
     if (!transferNumber) {
-      setError("بيانات رقم Vodafone Cash غير متوفرة حاليًا.");
+      setError("لا يمكن تأكيد الطلب: لم يقم المتجر بإعداد رقم التحويل (Vodafone Cash) بعد.");
       return;
     }
     if (!receiptFile) {
@@ -218,6 +229,7 @@ export default function Checkout({
       )}
       {error && (
         <p
+          ref={errorRef}
           role="alert"
           className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700"
         >
@@ -349,6 +361,11 @@ export default function Checkout({
                   <p className="mt-3 font-semibold">اسم الحساب</p>
                   <p className="mt-1 text-gray-600">{transferAccountName}</p>
                 </>
+              )}
+              {paymentUnavailable && (
+                <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                  الدفع غير متاح حالياً: لم يقم المتجر بإعداد رقم التحويل بعد، لذلك لا يمكن تأكيد الطلبات.
+                </p>
               )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -489,7 +506,8 @@ export default function Checkout({
             </div>
             <button
               type="submit"
-              disabled={submitting || loading || Boolean(cartError)}
+              disabled={submitting || loading || Boolean(cartError) || paymentUnavailable}
+              title={paymentUnavailable ? "الدفع غير متاح: رقم التحويل غير مُعد من المتجر" : undefined}
               className="w-full rounded-xl px-5 py-3 font-bold text-white disabled:opacity-50"
               style={{ background: "var(--rose-deep)" }}
             >
