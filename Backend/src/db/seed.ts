@@ -8,6 +8,7 @@ import { ProductColor } from "../models/ProductColor";
 import { ProductSize } from "../models/ProductSize";
 import { ProductImage } from "../models/ProductImage";
 import { Admin } from "../models/Admin";
+import { Color } from "../models/Color";
 import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
 import bcrypt from "bcryptjs";
 
@@ -30,6 +31,29 @@ async function seed() {
       exists = catRepo.create(c);
       await catRepo.save(exists);
       console.log("Category created:", c.slug);
+    }
+  }
+
+  // ─── Global color palette (/colors) - used by admin product creation ───
+  // Idempotent: skips entries whose nameEn or hexCode already exists.
+  const paletteData = [
+    { nameEn: "black", nameAr: "أسود", hexCode: "#000000" },
+    { nameEn: "white", nameAr: "أبيض", hexCode: "#FFFFFF" },
+    { nameEn: "beige", nameAr: "بيج", hexCode: "#E3D3B8" },
+    { nameEn: "pink", nameAr: "وردي", hexCode: "#C67B90" },
+    { nameEn: "red", nameAr: "أحمر", hexCode: "#B03A48" },
+    { nameEn: "navy", nameAr: "كحلي", hexCode: "#232F46" },
+    { nameEn: "blue", nameAr: "أزرق", hexCode: "#2E6FA3" },
+    { nameEn: "green", nameAr: "أخضر", hexCode: "#2E7D5B" },
+    { nameEn: "brown", nameAr: "بني", hexCode: "#7B4B33" },
+    { nameEn: "gold", nameAr: "ذهبي", hexCode: "#C9A227" },
+  ];
+  const colorRepo = AppDataSource.getRepository(Color);
+  for (const c of paletteData) {
+    const exists = await colorRepo.findOne({ where: [{ nameEn: c.nameEn }, { hexCode: c.hexCode }] });
+    if (!exists) {
+      await colorRepo.save(colorRepo.create(c));
+      console.log("Color created:", c.nameEn, c.hexCode);
     }
   }
 
