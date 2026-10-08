@@ -7,6 +7,9 @@ export type AppUser = {
   name: string;
   email: string;
   role: "user" | "admin";
+  phone?: string | null;
+  isVerified?: boolean;
+  createdAt?: string;
 };
 
 const USER_STORAGE_KEY = "esia-user";
@@ -34,6 +37,9 @@ const normalizeBackendUser = (payload: any): AppUser | null => {
     ),
     email,
     role: normalizeRole(user?.role ?? payload.role),
+    phone: (user?.phone ?? payload.phone ?? null) as string | null,
+    isVerified: user?.isVerified ?? payload.isVerified,
+    createdAt: user?.createdAt ?? payload.createdAt,
   };
 };
 
@@ -198,7 +204,21 @@ export function useAuthSession() {
     [],
   );
 
-  return { user, isLoading, signIn, signUp, signOut, error };
+  const refreshProfile = useCallback(async () => {
+    try {
+      const payload = await authService.me();
+      const backendUser = normalizeBackendUser(payload?.user ?? payload);
+      if (backendUser) {
+        setUser(backendUser);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(backendUser));
+      }
+      return backendUser;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return { user, isLoading, signIn, signUp, signOut, error, refreshProfile, setUser };
 }
 
 export { clearSession };

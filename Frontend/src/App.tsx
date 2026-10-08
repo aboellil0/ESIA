@@ -17,6 +17,7 @@ import Storefront from "./components/Storefront";
 import AuthPage from "./components/AuthPage";
 import CheckEmail, { clearPendingEmail, rememberPendingEmail } from "./components/CheckEmail";
 import MyOrders from "./components/MyOrders";
+import Profile from "./components/Profile";
 import TrackOrder from "./components/TrackOrder";
 import EmailVerification from "./components/EmailVerification";
 import ResetPassword from "./components/ResetPassword";
@@ -111,6 +112,7 @@ function AppShell({
   signUp,
   signOut,
   error,
+  refreshProfile,
 }: {
   user: any;
   isLoading: boolean;
@@ -118,6 +120,7 @@ function AppShell({
   signUp: { emailPassword: (input: { email: string; password: string; name?: string; phone?: string }) => Promise<any> };
   signOut: { signOut: () => Promise<void> };
   error: { message: string } | null;
+  refreshProfile?: () => Promise<unknown>;
 }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartLoading, setCartLoading] = useState(true);
@@ -186,6 +189,7 @@ function AppShell({
       return;
     }
     else if (view === "my-orders") target = "/my-orders";
+    else if (view === "profile") target = "/profile";
     else if (view === "track-order") target = value ? "/track-order/" + encodeURIComponent(value) : "/track-order";
     else if (view === "admin-orders") target = "/admin-orders";
     else if (view === "admin-products") target = "/admin-products";
@@ -328,6 +332,7 @@ function AppShell({
       <Route path="/verify-email" element={<EmailVerification />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/my-orders" element={<ProtectedRoute user={user} isLoading={isLoading} role="user"><MyOrders onNavigate={redirect} /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute user={user} isLoading={isLoading} role="user"><Profile user={user} onNavigate={redirect} onLogout={logout} onRefreshUser={refreshProfile} /></ProtectedRoute>} />
       <Route path="/admin-orders" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminOrders onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />
       <Route path="/admin-products" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminProducts onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />
       <Route path="/admin-catalog" element={<ProtectedRoute user={user} isLoading={isLoading} role="admin"><AdminCatalog onNavigate={redirect} onLogout={logout} /></ProtectedRoute>} />

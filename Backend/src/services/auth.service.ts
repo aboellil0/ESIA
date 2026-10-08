@@ -236,6 +236,62 @@ export const AuthService = {
     return null;
   },
 
+  async getProfile(userId: number) {
+    const user = await AppDataSource.getRepository(User).findOne({ where: { id: userId } });
+    if (!user) throw AppError.notFound("User not found");
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      role: UserRole.USER,
+    };
+  },
+
+  async updateProfile(userId: number, data: { name?: string; phone?: string | null }) {
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { id: userId } });
+    if (!user) throw AppError.notFound("User not found");
+    if (data.name !== undefined) {
+      const name = String(data.name).trim();
+      if (!name) throw AppError.validation("Name cannot be empty");
+      if (name.length > 150) throw AppError.validation("Name is too long");
+      user.name = name;
+    }
+    if (data.phone !== undefined) {
+      const phone = data.phone === null ? null : String(data.phone).trim() || null;
+      if (phone && phone.length > 20) throw AppError.validation("Phone number is too long");
+      user.phone = phone;
+    }
+    const saved = await userRepo.save(user);
+    return {
+      id: saved.id,
+      name: saved.name,
+      email: saved.email,
+      phone: saved.phone,
+      isVerified: saved.isVerified,
+      createdAt: saved.createdAt,
+      role: UserRole.USER,
+    };
+  },
+
+  async changePassword(userId: number, currentPassword?: string, newPassword?: string) {
+    if (!currentPassword) throw AppError.validation("Current password is required");
+    if (!newPassword) throw AppError.validation("New password is required");
+    if (currentPassword === newPassword) throw AppError.validation("New password must be different from the current password");
+    validatePasswordStrength(newPassword);
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { id: userId } });
+    if (!user) throw AppError.notFound("User not found");
+    const match = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!match) throw AppError.unauthorized("Current password is incorrect");
+    user.passwordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
+    await userRepo.save(user);
+    return { id: user.id, email: user.email };
+  },
+
   async createAdmin(data: { email?: string; password?: string }) {
     const { email, password } = data;
     if (!email || !password) throw AppError.validation("email and password are required");

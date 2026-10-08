@@ -46,9 +46,13 @@ export function SiteChrome({
             <BrandLogo />
           </button>
           <div className="flex items-center gap-2">
-            {showGuestSignIn && (
+            {showGuestSignIn ? (
               <button type="button" onClick={() => onNavigate("auth")} className="rounded-full px-3 py-2 text-xs font-bold text-white" style={{ background: "var(--rose-deep)" }}>
                 تسجيل الدخول
+              </button>
+            ) : (
+              <button type="button" onClick={() => onNavigate("profile")} aria-label="حسابي" className="rounded-full border bg-white px-4 py-2 text-xs font-bold" style={{ borderColor: "var(--line)", color: "var(--plum)" }}>
+                👤 حسابي
               </button>
             )}
             <button type="button" onClick={() => onNavigate("checkout")} aria-label="السلة" className="relative rounded-xl border bg-white px-3 py-2" style={{ borderColor: "var(--line)", color: "var(--plum)" }}>

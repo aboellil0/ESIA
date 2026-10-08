@@ -21,6 +21,18 @@ export const authService = {
     const response = await api.get("/auth/me");
     return unwrapApiResult<any>(response);
   },
+  async profile() {
+    const response = await api.get("/auth/profile");
+    return unwrapApiResult<any>(response);
+  },
+  async updateProfile(input: { name?: string; phone?: string }) {
+    const response = await api.patch("/auth/profile", input);
+    return unwrapApiResult<any>(response);
+  },
+  async changePassword(input: { currentPassword: string; newPassword: string }) {
+    const response = await api.post("/auth/change-password", input);
+    return unwrapApiResult<any>(response);
+  },
   async verifyEmail(token: string) {
     const response = await api.get("/auth/verify-email", { params: { token } });
     return unwrapApiResult<any>(response);
