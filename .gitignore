@@ -6,3 +6,4 @@ sequelize_with_nodejs-main/
 .env.local
 .env.tunnel
 .env.prod-ip
+.env.prod
