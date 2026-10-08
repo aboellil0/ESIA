@@ -37,8 +37,8 @@ export const cartService = {
     const response = await api.delete("/cart");
     return unwrapApiResult<null>(response);
   },
-  async merge(items: CartInputItem[]) {
-    const response = await api.post("/cart/merge", { items });
+  async merge(items: CartInputItem[], guestToken?: string | null) {
+    const response = await api.post("/cart/merge", { items, guestToken: guestToken || undefined });
     return unwrapApiResult<any>(response);
   },
 };

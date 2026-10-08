@@ -1,10 +1,20 @@
 import { Request, Response } from "express";
+import { IsNull } from "typeorm";
 import { CartService } from "../services/cart.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AppError } from "../utils/AppError";
+import { AppDataSource } from "../config/data-source";
+import { Cart } from "../models/Cart";
+
+// req.user.id comes from the JWT payload as a string at runtime — normalize it
+// so logged-in users always hit their DB user cart (never a guest cart).
+const getUserId = (req: Request): number | undefined => {
+  const id = Number(req.user?.id);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
 
 export const getCart = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id as number | undefined;
+  const userId = getUserId(req);
   const guestToken = req.headers["x-guest-token"] as string | undefined;
 
   const cart = await CartService.getCart(userId, guestToken);
@@ -18,7 +28,7 @@ export const getCart = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const addToCart = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id as number | undefined;
+  const userId = getUserId(req);
   const guestToken = req.headers["x-guest-token"] as string | undefined;
   const { productId, quantity, colorId, size } = req.body;
 
@@ -46,7 +56,7 @@ export const addToCart = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateCartItem = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id as number | undefined;
+  const userId = getUserId(req);
   const guestToken = req.headers["x-guest-token"] as string | undefined;
   const itemId = Number(req.params.itemId);
   const { quantity } = req.body;
@@ -66,7 +76,7 @@ export const updateCartItem = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const removeFromCart = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id as number | undefined;
+  const userId = getUserId(req);
   const guestToken = req.headers["x-guest-token"] as string | undefined;
   const itemId = Number(req.params.itemId);
 
@@ -81,7 +91,7 @@ export const removeFromCart = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const clearCart = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id as number | undefined;
+  const userId = getUserId(req);
   const guestToken = req.headers["x-guest-token"] as string | undefined;
 
   await CartService.clearCart(userId, guestToken);
@@ -96,13 +106,21 @@ export const clearCart = asyncHandler(async (req: Request, res: Response) => {
 
 export const mergeCarts = asyncHandler(async (req: Request, res: Response) => {
   const userId = Number(req.user!.id);
-  const { items } = req.body;
+  const { items, guestToken } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new AppError("items array is required", 400);
   }
 
   const cart = await CartService.mergeCarts(userId, items);
+
+  // Guest cart has been absorbed into the user cart — remove the orphaned
+  // guest row so it can never resurface (only delete true guest carts).
+  if (typeof guestToken === "string" && guestToken) {
+    try {
+      await AppDataSource.getRepository(Cart).delete({ guestToken, userId: IsNull() });
+    } catch {}
+  }
 
   res.json({
     success: true,

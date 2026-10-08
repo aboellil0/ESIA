@@ -136,12 +136,15 @@ function AppShell({
       if (user?.role === "user") {
         const guestData = guestCartItems.current.length > 0 ? null : await cartService.getGuestCart();
         const guestItems = guestCartItems.current.length > 0 ? guestCartItems.current : mapCart(guestData);
+        // Capture the guest token before dropping it so the server can delete
+        // the absorbed guest cart row after merging into the DB user cart.
+        const guestToken = localStorage.getItem("esia-guest-token");
         if (guestItems.length > 0) await cartService.merge(guestItems.map((item) => ({
           productId: Number(item.productId),
           quantity: item.qty,
           colorId: item.colorId,
           size: item.size || undefined,
-        })));
+        })), guestToken);
         guestCartItems.current = [];
         localStorage.removeItem("esia-guest-token");
       }
