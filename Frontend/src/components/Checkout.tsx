@@ -1,12 +1,21 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { CartItem } from "../App";
 import { getApiErrorMessage } from "../lib/api";
 import { DEPOSIT_RATE, RECEIPT_MAX_BYTES, SHIPPING_FEE } from "../lib/storeConfig";
+
+export interface CheckoutSavedInfo {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+}
 
 interface Props {
   items: CartItem[];
   loading: boolean;
   cartError: string | null;
+  savedInfo?: CheckoutSavedInfo | null;
   onRetryCart: () => Promise<void>;
   onNavigate: (view: string, value?: string) => void;
   onRemoveItem: (itemId: number) => Promise<void>;
@@ -39,6 +48,7 @@ export default function Checkout({
   items,
   loading,
   cartError,
+  savedInfo,
   onRetryCart,
   onNavigate,
   onRemoveItem,
@@ -52,6 +62,19 @@ export default function Checkout({
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Auto-fill delivery info from the saved user profile (once per mount).
+  // Only fills fields the user hasn't typed in, so edits are never overwritten.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !savedInfo) return;
+    prefilled.current = true;
+    if (savedInfo.name) setCustomerName((v) => v || savedInfo.name || "");
+    if (savedInfo.email) setEmail((v) => v || savedInfo.email || "");
+    if (savedInfo.phone) setPhone((v) => v || savedInfo.phone || "");
+    if (savedInfo.address) setAddress((v) => v || savedInfo.address || "");
+    if (savedInfo.city) setCity((v) => v || savedInfo.city || "");
+  }, [savedInfo]);
   const [senderName, setSenderName] = useState("");
   const [senderNumber, setSenderNumber] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -301,6 +324,11 @@ export default function Checkout({
             style={{ borderColor: "var(--line)" }}
           >
             <h2 className="text-xl font-bold">بيانات التوصيل والدفع</h2>
+            {savedInfo && (savedInfo.name || savedInfo.address) && (
+              <p className="text-xs text-gray-500">
+                تم ملء بياناتك المحفوظة تلقائياً — يمكنك تعديلها قبل تأكيد الطلب.
+              </p>
+            )}
             <div className="rounded-2xl bg-[#fbf5ef] p-4 text-sm">
               <p className="font-semibold">طريقة الدفع</p>
               <p className="mt-1" dir="ltr">

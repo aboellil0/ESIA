@@ -25,7 +25,7 @@ export const authService = {
     const response = await api.get("/auth/profile");
     return unwrapApiResult<any>(response);
   },
-  async updateProfile(input: { name?: string; phone?: string }) {
+  async updateProfile(input: { name?: string; phone?: string; address?: string; city?: string }) {
     const response = await api.patch("/auth/profile", input);
     return unwrapApiResult<any>(response);
   },

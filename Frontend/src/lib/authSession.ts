@@ -8,6 +8,8 @@ export type AppUser = {
   email: string;
   role: "user" | "admin";
   phone?: string | null;
+  address?: string | null;
+  city?: string | null;
   isVerified?: boolean;
   createdAt?: string;
 };
@@ -38,6 +40,8 @@ const normalizeBackendUser = (payload: any): AppUser | null => {
     email,
     role: normalizeRole(user?.role ?? payload.role),
     phone: (user?.phone ?? payload.phone ?? null) as string | null,
+    address: (user?.address ?? payload.address ?? null) as string | null,
+    city: (user?.city ?? payload.city ?? null) as string | null,
     isVerified: user?.isVerified ?? payload.isVerified,
     createdAt: user?.createdAt ?? payload.createdAt,
   };

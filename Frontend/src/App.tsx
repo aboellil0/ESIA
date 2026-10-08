@@ -327,7 +327,7 @@ function AppShell({
       <Route path="/category/:slug" element={<CategoryRoute {...sharedStoreProps} />} />
       <Route path="/story" element={<Storefront view="story" {...sharedStoreProps} />} />
       <Route path="/product/:productId" element={<ProductRoute cart={cartCount} onAddToCart={addToCart} onNavigate={redirect} showGuestSignIn={!user} />} />
-      <Route path="/checkout" element={<Checkout items={cartItems} loading={cartLoading} cartError={cartError} onRetryCart={loadCart} onNavigate={redirect} onRemoveItem={removeItem} onUpdateQty={updateItemQty} onClearCart={clearCart} onPlaceOrder={placeOrder} />} />
+      <Route path="/checkout" element={<Checkout items={cartItems} loading={cartLoading} cartError={cartError} savedInfo={user?.role === "user" ? { name: user.name, email: user.email, phone: user.phone, address: user.address, city: user.city } : null} onRetryCart={loadCart} onNavigate={redirect} onRemoveItem={removeItem} onUpdateQty={updateItemQty} onClearCart={clearCart} onPlaceOrder={placeOrder} />} />
       <Route path="/track-order" element={<TrackOrder onNavigate={redirect} />} />
       <Route path="/track-order/:orderNumber" element={<TrackedOrderRoute onNavigate={redirect} />} />
       <Route path="/auth" element={<AuthPage user={user} isLoading={isLoading} signIn={signIn} signUp={signUp} signOut={signOut} error={error} onContinueAsGuest={() => navigate("/", { replace: true })} onRequireVerification={(email) => redirect("check-email", email)} />} />

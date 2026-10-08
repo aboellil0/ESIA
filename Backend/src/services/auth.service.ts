@@ -179,7 +179,7 @@ export const AuthService = {
       tokenExpiration: new Date(decoded.exp * 1000).toISOString(),
       refreshTokenExpiration: refreshDoc.expiresAt.toISOString(),
       deviceId,
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, isVerified: true, role: UserRole.USER },
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, address: user.address, city: user.city, isVerified: true, role: UserRole.USER },
     };
   },
 
@@ -244,13 +244,15 @@ export const AuthService = {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      address: user.address,
+      city: user.city,
       isVerified: user.isVerified,
       createdAt: user.createdAt,
       role: UserRole.USER,
     };
   },
 
-  async updateProfile(userId: number, data: { name?: string; phone?: string | null }) {
+  async updateProfile(userId: number, data: { name?: string; phone?: string | null; address?: string | null; city?: string | null }) {
     const userRepo = AppDataSource.getRepository(User);
     const user = await userRepo.findOne({ where: { id: userId } });
     if (!user) throw AppError.notFound("User not found");
@@ -265,12 +267,24 @@ export const AuthService = {
       if (phone && phone.length > 20) throw AppError.validation("Phone number is too long");
       user.phone = phone;
     }
+    if (data.address !== undefined) {
+      const address = data.address === null ? null : String(data.address).trim() || null;
+      if (address && address.length > 1000) throw AppError.validation("Address is too long");
+      user.address = address;
+    }
+    if (data.city !== undefined) {
+      const city = data.city === null ? null : String(data.city).trim() || null;
+      if (city && city.length > 100) throw AppError.validation("City name is too long");
+      user.city = city;
+    }
     const saved = await userRepo.save(user);
     return {
       id: saved.id,
       name: saved.name,
       email: saved.email,
       phone: saved.phone,
+      address: saved.address,
+      city: saved.city,
       isVerified: saved.isVerified,
       createdAt: saved.createdAt,
       role: UserRole.USER,

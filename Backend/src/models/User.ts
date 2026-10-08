@@ -25,6 +25,14 @@ export class User {
   @Expose()
   phone!: string | null;
 
+  @Column({ type: "text", nullable: true })
+  @Expose()
+  address!: string | null;
+
+  @Column({ type: "varchar", length: 100, nullable: true })
+  @Expose()
+  city!: string | null;
+
   @Column({ name: "is_verified", type: "boolean", default: false })
   @Expose()
   isVerified!: boolean;

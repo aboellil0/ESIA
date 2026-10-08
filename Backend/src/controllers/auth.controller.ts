@@ -77,8 +77,8 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
-  const { name, phone } = req.body;
-  const data = await AuthService.updateProfile(Number(req.user?.id), { name, phone });
+  const { name, phone, address, city } = req.body;
+  const data = await AuthService.updateProfile(Number(req.user?.id), { name, phone, address, city });
   res.status(200).json({ success: true, message: "Profile updated successfully", data: { user: data }, statusCode: 200 });
 });
 

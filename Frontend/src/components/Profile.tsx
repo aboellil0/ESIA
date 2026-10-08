@@ -40,6 +40,8 @@ export default function Profile({
   const [tab, setTab] = useState<Tab>("info");
   const [name, setName] = useState(user.name ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
+  const [address, setAddress] = useState(user.address ?? "");
+  const [city, setCity] = useState(user.city ?? "");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,8 @@ export default function Profile({
     name: string;
     email: string;
     phone?: string | null;
+    address?: string | null;
+    city?: string | null;
     isVerified?: boolean;
   } | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -77,11 +81,15 @@ export default function Profile({
       name: String(u.name ?? String(u.email).split("@")[0]),
       email: String(u.email),
       phone: (u.phone ?? null) as string | null,
+      address: (u.address ?? null) as string | null,
+      city: (u.city ?? null) as string | null,
       isVerified: u.isVerified as boolean | undefined,
     };
     setFresh(next);
     setName(next.name);
     setPhone(next.phone ?? "");
+    setAddress(next.address ?? "");
+    setCity(next.city ?? "");
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -106,6 +114,8 @@ export default function Profile({
     name: fresh?.name ?? user.name,
     email: fresh?.email ?? user.email,
     phone: fresh?.phone ?? user.phone ?? null,
+    address: fresh?.address ?? user.address ?? null,
+    city: fresh?.city ?? user.city ?? null,
     isVerified: fresh?.isVerified ?? user.isVerified,
   };
 
@@ -149,6 +159,8 @@ export default function Profile({
       const result = await authService.updateProfile({
         name: name.trim(),
         phone: phone.trim(),
+        address: address.trim(),
+        city: city.trim(),
       });
       // Server response is truth: refresh displayed values from it so the
       // form can never show a stale phone/name after saving.
@@ -284,6 +296,9 @@ export default function Profile({
           style={{ borderColor: "var(--line)" }}
         >
           <h2 className="text-lg font-bold">البيانات الأساسية</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            بيانات التوصيل المحفوظة تُملأ تلقائياً عند إتمام الطلب.
+          </p>
           {notice && (
             <p role="status" className="mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-800">
               {notice}
@@ -312,6 +327,19 @@ export default function Profile({
             <label className="text-sm sm:col-span-2">
               البريد الإلكتروني
               <input value={shown.email} readOnly disabled dir="ltr" className={inputClass + " opacity-60"} />
+            </label>
+            <label className="text-sm">
+              المدينة
+              <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
+            </label>
+            <label className="text-sm">
+              العنوان
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="الشارع، رقم العمارة، الشقة..."
+                className={inputClass}
+              />
             </label>
             <div className="sm:col-span-2">
               <button
