@@ -5,6 +5,9 @@ import { AppError } from "../utils/AppError";
 import { OrderStatus } from "../models/enums";
 import { PaymentMethod, PaymentStatus } from "../models/enums";
 import { toUrlPath } from "../middlewares/upload.middleware";
+import { AppDataSource } from "../config/data-source";
+import { Order } from "../models/Order";
+import { User } from "../models/User";
 
 function getQueryString(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -86,7 +89,11 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const userId = req.user?.id as number | undefined;
+  // Link to the signed-in account when present (optionalProtect populates
+  // req.user; the JWT id arrives as a string at runtime — normalize it).
+  // Guests keep userId undefined and order as guests.
+  const rawUserId = Number(req.user?.id);
+  const userId = Number.isInteger(rawUserId) && rawUserId > 0 ? rawUserId : undefined;
 
   const order = await OrderService.createOrder({
     customerName,
@@ -158,6 +165,20 @@ export const getUserOrders = asyncHandler(async (req: Request, res: Response) =>
   const paymentStatus = getQueryString(req, "paymentStatus") as PaymentStatus | undefined;
   const page = getQueryNumber(req, "page", 1);
   const limit = getQueryNumber(req, "limit", 10);
+
+  // Self-heal: orders placed while signed in before user-linking existed
+  // (user_id NULL) are claimed by matching account email, so they show up here.
+  try {
+    const account = await AppDataSource.getRepository(User).findOne({ where: { id: userId } });
+    if (account) {
+      await AppDataSource.getRepository(Order)
+        .createQueryBuilder()
+        .update()
+        .set({ userId })
+        .where("user_id IS NULL AND email = :email", { email: account.email })
+        .execute();
+    }
+  } catch {}
 
   const result = await OrderService.getUserOrders(userId, {
     status,
