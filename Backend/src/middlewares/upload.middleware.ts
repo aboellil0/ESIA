@@ -35,9 +35,10 @@ const storage = multer.diskStorage({
 
     // Use process.cwd() so it works both with tsx (src) and compiled dist, and with Docker.
     // Fallback to __dirname based path for compatibility.
-    const baseUpload = process.env.UPLOAD_DIR
-      ? path.join(process.cwd(), process.env.UPLOAD_DIR)
-      : path.join(process.cwd(), "uploads");
+    // NOTE: UPLOAD_DIR may be absolute (e.g. /app/uploads in Docker) - path.join(cwd, "/app/uploads")
+    // would wrongly produce /app/app/uploads, so respect absolute paths.
+    const rawUpload = process.env.UPLOAD_DIR || "uploads";
+    const baseUpload = path.isAbsolute(rawUpload) ? rawUpload : path.join(process.cwd(), rawUpload);
     const targetDir = path.join(baseUpload, entity, type);
 
     if (!fs.existsSync(targetDir)) {

@@ -88,7 +88,11 @@ app.use("/api/v1/cart", cartRoutes);
 app.use("/api", router);
 app.use("/api/v1", router);
 
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+  const rawUploadDir = process.env.UPLOAD_DIR || "uploads";
+  const uploadsDir = path.isAbsolute(rawUploadDir)
+    ? rawUploadDir
+    : path.join(__dirname, "..", rawUploadDir);
+  app.use("/uploads", express.static(uploadsDir));
 
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
