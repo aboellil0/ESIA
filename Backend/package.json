@@ -11,6 +11,9 @@
         "db:migrate": "tsx src/db/migrate.ts",
         "db:seed": "tsx src/db/seed.ts",
         "db:reset": "tsx src/db/reset.ts",
+        "db:migrate:prod": "node dist/db/migrate.js",
+        "db:seed:prod": "node dist/db/seed.js",
+        "db:reset:prod": "node dist/db/reset.js",
         "db:generate": "typeorm migration:generate -d src/config/data-source.ts src/db/migrations/Auto",
         "db:revert": "typeorm migration:revert -d src/config/data-source.ts",
         "typeorm": "typeorm"
