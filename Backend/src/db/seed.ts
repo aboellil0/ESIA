@@ -73,12 +73,27 @@ async function seed() {
     }
   }
 
-  let admin = await adminRepo.findOne({ where: { email: "admin@esia.local" } });
+  // ─── Admin from .env (ADMIN_EMAIL / ADMIN_PASSWORD) ───
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@esia.local").trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || "Admin123!";
+  const usingDefaultPassword = !process.env.ADMIN_PASSWORD;
+  if (usingDefaultPassword) {
+    console.warn(
+      "WARNING: ADMIN_PASSWORD is not set - using default dev password. " +
+      "Set ADMIN_PASSWORD in .env for production!"
+    );
+  }
+  let admin = await adminRepo.findOne({ where: { email: adminEmail } });
   if (!admin) {
-    const hash = await bcrypt.hash("Admin123!", 10);
-    admin = adminRepo.create({ email: "admin@esia.local", passwordHash: hash });
+    const hash = await bcrypt.hash(adminPassword, 10);
+    admin = adminRepo.create({ email: adminEmail, passwordHash: hash });
     await adminRepo.save(admin);
-    console.log("Admin created: admin@esia.local / Admin123!");
+    console.log(`Admin created: ${adminEmail}`);
+  } else if (process.env.ADMIN_PASSWORD && !(await bcrypt.compare(adminPassword, admin.passwordHash))) {
+    // .env password changed -> rotate stored hash so login matches .env
+    admin.passwordHash = await bcrypt.hash(adminPassword, 10);
+    await adminRepo.save(admin);
+    console.log(`Admin password updated from .env for: ${adminEmail}`);
   } else {
     console.log("Admin exists");
   }

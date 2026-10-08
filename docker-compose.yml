@@ -39,6 +39,8 @@ services:
       - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL}
       - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-ESIA}
       - EMAIL_VERIFICATION_EXPIRES_HOURS=${EMAIL_VERIFICATION_EXPIRES_HOURS:-24}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@esia.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - UPLOAD_DIR=/app/uploads
     volumes:
       - uploads_data:/app/uploads
