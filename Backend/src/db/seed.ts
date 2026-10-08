@@ -57,43 +57,80 @@ async function seed() {
     }
   }
 
-  const dressCat = await catRepo.findOne({ where: { slug: "dresses" } });
-  if (dressCat) {
-    const existing = await prodRepo.findOne({ where: { categoryId: dressCat.id } });
-    if (!existing) {
-      const product = prodRepo.create({
-        categoryId: dressCat.id,
-        name: "Puff Sleeve Dress",
-        tag: ProductTag.NEW,
-        defaultShape: DefaultShape.PUFF_SLEEVES,
-        price: 1299,
-        oldPrice: 1599,
-        shortDescription: "Demo dress - puff sleeves default shape",
+  // ─── Demo products with images from Frontend/public/assets (served as /assets/...) ───
+  // Repairs the old "/assets/demo.jpg" placeholder (file never existed) and
+  // fills products that have no images, so the storefront shows pictures.
+  const imgRepo = AppDataSource.getRepository(ProductImage);
+  const broken = await imgRepo.find({ where: { imageUrl: "/assets/demo.jpg" } });
+  for (const b of broken) {
+    b.imageUrl = "/assets/product-1/img-1.jpg";
+    await imgRepo.save(b);
+    console.log("Repaired broken demo image:", b.id);
+  }
+
+  const demoProducts = [
+    {
+      slug: "dresses", name: "Puff Sleeve Dress", tag: ProductTag.NEW,
+      defaultShape: DefaultShape.PUFF_SLEEVES, price: 1299, oldPrice: 1599,
+      shortDescription: "Demo dress - puff sleeves default shape",
+      images: ["/assets/product-1/img-1.jpg", "/assets/product-1/img-2.jpg", "/assets/product-1/img-3.jpg"],
+    },
+    {
+      slug: "bags", name: "Classic Handbag", tag: ProductTag.BEST_SELLER,
+      defaultShape: null, price: 899, oldPrice: null,
+      shortDescription: "Demo bag",
+      images: ["/assets/product-2/img-1.jpg", "/assets/product-2/img-2.jpg"],
+    },
+    {
+      slug: "accessories", name: "Elegant Scarf", tag: ProductTag.NONE,
+      defaultShape: null, price: 299, oldPrice: 399,
+      shortDescription: "Demo accessory",
+      images: ["/assets/product-3/img-1.jpg", "/assets/product-3/img-2.jpg", "/assets/product-3/img-3.jpg"],
+    },
+  ];
+  for (const d of demoProducts) {
+    const cat = await catRepo.findOne({ where: { slug: d.slug } });
+    if (!cat) continue;
+    let product = await prodRepo.findOne({ where: { categoryId: cat.id } });
+    if (!product) {
+      const created = prodRepo.create({
+        categoryId: cat.id,
+        name: d.name,
+        tag: d.tag,
+        defaultShape: d.defaultShape,
+        price: d.price,
+        oldPrice: d.oldPrice,
+        shortDescription: d.shortDescription,
         isActive: true,
         coverImageUrl: null,
       });
-      const saved = await prodRepo.save(product);
-      console.log("Product created:", saved.id);
+      const saved = await prodRepo.save(created);
+      product = saved;
+      console.log("Product created:", saved.id, d.name);
 
-      const colorRepo = AppDataSource.getRepository(ProductColor);
+      const prodColorRepo = AppDataSource.getRepository(ProductColor);
       for (const c of [
         { nameEn: "pink", nameAr: "وردي", hexCode: "#C67B90" },
         { nameEn: "black", nameAr: "أسود", hexCode: "#000000" },
       ]) {
-        const col = colorRepo.create({ productId: saved.id, nameEn: c.nameEn, nameAr: c.nameAr, hexCode: c.hexCode });
-        await colorRepo.save(col);
+        const col = prodColorRepo.create({ productId: saved.id, nameEn: c.nameEn, nameAr: c.nameAr, hexCode: c.hexCode });
+        await prodColorRepo.save(col);
       }
       const sizeRepo = AppDataSource.getRepository(ProductSize);
       for (const s of [SizeEnum.S, SizeEnum.M, SizeEnum.L]) {
         const sz = sizeRepo.create({ productId: saved.id, size: s, isAvailable: true });
         await sizeRepo.save(sz);
       }
-      const imgRepo = AppDataSource.getRepository(ProductImage);
-      const img = imgRepo.create({ productId: saved.id, imageUrl: "/assets/demo.jpg", sortOrder: 0 });
-      await imgRepo.save(img);
-      console.log("Product relations seeded");
+      console.log("Product relations seeded for:", saved.id);
     } else {
-      console.log("Product already exists, skipping");
+      console.log("Product already exists, skipping:", d.name);
+    }
+    const imgCount = await imgRepo.count({ where: { productId: product.id } });
+    if (imgCount === 0) {
+      for (let i = 0; i < d.images.length; i++) {
+        await imgRepo.save(imgRepo.create({ productId: product.id, imageUrl: d.images[i], sortOrder: i }));
+      }
+      console.log("Product images seeded for:", product.id);
     }
   }
 
