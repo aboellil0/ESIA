@@ -5,6 +5,7 @@ import { useCategories } from "../lib/categoryContext";
 import { categoriesService } from "../services/categories";
 import { productsService } from "../services/products";
 import { ProductCard, SiteChrome } from "./SiteChrome";
+import heroUrl from "../assets/esia-logo-hero.png";
 
 interface Props {
   view: string;
@@ -98,7 +99,7 @@ export default function Storefront({
       {view === "story" ? (
         <section className="mx-auto grid max-w-[1100px] items-center gap-8 px-6 py-16 md:grid-cols-2">
           <div className="rounded-3xl border bg-white p-12 text-center" style={{ borderColor: "var(--line)" }}>
-            <img src="/assets/esia-logo-hero.png?v=2" alt="ESIA" className="mx-auto max-h-80 object-contain" />
+            <img src={heroUrl} alt="ESIA" className="mx-auto max-h-80 object-contain" />
           </div>
           <div>
             <p className="mb-3 text-xs font-bold tracking-[0.14em]" style={{ color: "var(--gold)" }}>ESIA COUTURE</p>
@@ -117,7 +118,7 @@ export default function Storefront({
             <section className="mx-auto max-w-[1260px] px-4 pt-8">
               <div className="grid min-h-[360px] overflow-hidden rounded-3xl border bg-white lg:grid-cols-2" style={{ borderColor: "var(--line)" }}>
                 <div className="flex min-h-[260px] items-center justify-center bg-[#f5e9e8] p-8">
-                  <img src="/assets/esia-logo-hero.png?v=2" alt="ESIA Couture" className="max-h-72 object-contain" />
+                  <img src={heroUrl} alt="ESIA Couture" className="max-h-72 object-contain" />
                 </div>
                 <div className="flex flex-col justify-center p-8 lg:p-14">
                   <p className="text-xs font-bold tracking-[0.18em]" style={{ color: "var(--gold)" }}>ESIA HAUTE COUTURE</p>
