@@ -48,12 +48,12 @@ const SIZES = [
   "XL",
   "2X",
   "3X",
-  "6-7",
-  "7-8",
-  "8-9",
-  "9-10",
-  "10-11",
-  "11-12",
+  "6-7Y",
+  "7-8Y",
+  "8-9Y",
+  "9-10Y",
+  "10-11Y",
+  "11-12Y",
 ];
 const inputClass =
   "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63]";

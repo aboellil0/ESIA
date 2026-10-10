@@ -143,7 +143,7 @@ export default function ProductDetail({
             <div className="grid gap-8 lg:grid-cols-2">
               <div>
                 <div className="relative overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
-                  {image ? <img src={image} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
+                  {image ? <img src={image} alt={product.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
                   {tagLabel && <span className="absolute end-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "var(--rose-deep)" }}>{tagLabel}</span>}
                   {!product.isActive && <span className="absolute bottom-3 start-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white">غير متاح حالياً</span>}
                 </div>

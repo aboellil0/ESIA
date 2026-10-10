@@ -92,7 +92,7 @@ export default function Storefront({
   }, [view, categorySlug, retryKey]);
 
   const title = categorySlug ? categoryName || "الفئة" : "اكتشفي المنتجات";
-  const subtitle = categorySlug ? "" : "قطع مختارة لإطلالة أنيقة في كل مناسبة";
+  const subtitle = categorySlug ? "" : "";
 
   return (
     <SiteChrome
@@ -109,7 +109,7 @@ export default function Storefront({
               style={{ borderColor: "var(--line)" }}
             >
               <img
-                src="/esia-hero.png?v=1"
+                src="/esia-hero-brand.jpeg"
                 alt="ESIA حيث الأناقة والجمال"
                 className="block h-auto w-full"
               />
@@ -124,18 +124,18 @@ export default function Storefront({
                   >
                     ESIA HAUTE COUTURE
                   </p>
-                  <h1
-                    className="mt-2 font-marcellus text-3xl sm:text-4xl"
+                  <h6
+                    className="mt-2 font-marcellus text-xl sm:text-l"
                     style={{ color: "var(--plum)" }}
                   >
-                    هنا <bdi dir="ltr">ESIA</bdi> حيث الأناقة والجمال
-                  </h1>
+                    <bdi dir="ltr"></bdi> حلمٌ بدأ منذ طفولتي… وكبر معي كلما
+                    كبرت، حتى أصبح اليوم واقعًا. وسأسعى دائمًا لتطويره بكل
+                    حب🧚🏻‍♀️🍄{" "}
+                  </h6>
                   <p
                     className="mt-3 leading-8"
                     style={{ color: "var(--plum-soft)" }}
-                  >
-                    اكتشفي المنتجات المتاحة حالياً في مجموعتنا.
-                  </p>
+                  ></p>
                 </div>
                 <button
                   type="button"
@@ -144,7 +144,7 @@ export default function Storefront({
                       .getElementById("explore")
                       ?.scrollIntoView({ behavior: "smooth" })
                   }
-                  className="w-fit rounded-xl px-6 py-3 font-bold text-white"
+                  className="w-fit rounded-lg px-4 py-2 text-sm font-bold text-white"
                   style={{ background: "var(--rose-deep)" }}
                 >
                   استكشفي المنتجات

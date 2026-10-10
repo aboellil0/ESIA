@@ -215,7 +215,7 @@ export default function AdminCatalog({ onNavigate, onLogout }: { onNavigate: (vi
               <form onSubmit={createColor} className="mb-6 grid gap-3 sm:grid-cols-2">
                 <label className="text-sm">الاسم بالإنجليزية<input required value={colorNameEn} onChange={(event) => setColorNameEn(event.target.value)} className={inputClass} dir="ltr" /></label>
                 <label className="text-sm">الاسم بالعربية<input required value={colorNameAr} onChange={(event) => setColorNameAr(event.target.value)} className={inputClass} /></label>
-                <label className="text-sm">اللون<input required pattern="#[0-9A-Fa-f]{6}" value={hexCode} onChange={(event) => setHexCode(event.target.value)} className={inputClass} dir="ltr" /></label>
+                <label className="text-sm">اختاري اللون<input required type="color" value={hexCode} onChange={(event) => setHexCode(event.target.value)} className="mt-1 block h-11 w-full cursor-pointer rounded-xl border bg-white p-1" /></label>
                 <button disabled={busy} className={buttonClass + " self-end text-white"} style={{ background: "var(--rose-deep)" }}>إضافة لون</button>
               </form>
               {colors.length === 0 ? <p className="py-6 text-center text-sm text-gray-500">لا توجد ألوان بعد.</p> : (
