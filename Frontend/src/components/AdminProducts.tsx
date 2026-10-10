@@ -92,6 +92,8 @@ export default function AdminProducts({
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  // Optional per-file color link for the create form (parallel to imageFiles).
+  const [imageColorIds, setImageColorIds] = useState<(number | null)[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [galleryColorId, setGalleryColorId] = useState("");
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -151,6 +153,7 @@ export default function AdminProducts({
     setSelectedColorIds([]);
     setSelectedSizes(["S", "M", "L"]);
     setImageFiles([]);
+    setImageColorIds([]);
     setCoverFile(null);
     setNewImageFiles([]);
     setGalleryColorId("");
@@ -196,6 +199,7 @@ export default function AdminProducts({
       .map((s) => s.size);
     setSelectedSizes(sizes.length ? sizes : []);
     setImageFiles([]);
+    setImageColorIds([]);
     setCoverFile(null);
     setNewImageFiles([]);
     setGalleryColorId("");
@@ -265,6 +269,10 @@ export default function AdminProducts({
       } else {
         imageFiles.forEach((file, index) => {
           formData.append("image[" + index + "]", file);
+          const link = imageColorIds[index];
+          if (link !== null && link !== undefined) {
+            formData.append("image[" + index + "].colorId", String(link));
+          }
         });
         if (coverFile) formData.append("cover", coverFile);
         await productsService.create(formData);
@@ -341,10 +349,16 @@ export default function AdminProducts({
     setNotice(null);
     try {
       const formData = makeGalleryForm(newImageFiles);
-      if (galleryColorId) formData.append("colorId", galleryColorId);
+      // Backend reads the link per file: image[N].colorId (top-level colorId is ignored).
+      if (galleryColorId) {
+        newImageFiles.forEach((_, index) => {
+          formData.append("image[" + index + "].colorId", galleryColorId);
+        });
+      }
       const updated = await productsService.addImages(selected.id, formData);
       setSelected(updated as ProductRow);
       setNewImageFiles([]);
+      setGalleryColorId("");
       setNotice("تمت إضافة الصور.");
       await loadProducts();
     } catch (saveError) {
@@ -779,21 +793,64 @@ export default function AdminProducts({
                           صورة من المعرض.
                         </span>
                       </label>
-                      <label className="text-sm">
-                        صور المعرض
+                      <div className="text-sm md:col-span-2">
+                        <span>صور المعرض</span>
                         <input
                           type="file"
                           accept="image/*"
                           multiple
-                          onChange={(event) =>
-                            setImageFiles(Array.from(event.target.files ?? []))
-                          }
+                          onChange={(event) => {
+                            const files = Array.from(event.target.files ?? []);
+                            setImageFiles(files);
+                            setImageColorIds(files.map(() => null));
+                          }}
                           className={inputClass}
                         />
                         <span className="mt-1 block text-xs text-gray-500">
-                          بعد حفظ المنتج، يمكنك اختيار لون لإضافة صور خاصة به.
+                          اختياري: اربطي كل صورة بلون لتظهر عند اختياره في صفحة
+                          المنتج. الصور بدون لون تظهر دائماً.
                         </span>
-                      </label>
+                        {imageFiles.length > 0 && (
+                          <div className="mt-2 space-y-2">
+                            {imageFiles.map((file, index) => (
+                              <div
+                                key={index + "-" + file.name + "-" + file.size}
+                                className="flex items-center gap-2 rounded-xl border p-2"
+                                style={{ borderColor: "var(--line)" }}
+                              >
+                                <span className="min-w-0 flex-1 truncate text-xs">
+                                  {file.name}
+                                </span>
+                                <select
+                                  value={imageColorIds[index] ?? ""}
+                                  disabled={busy}
+                                  onChange={(event) =>
+                                    setImageColorIds((prev) => {
+                                      const next = [...prev];
+                                      next[index] = event.target.value
+                                        ? Number(event.target.value)
+                                        : null;
+                                      return next;
+                                    })
+                                  }
+                                  className="rounded-lg border p-1.5 text-xs"
+                                >
+                                  <option value="">بدون لون</option>
+                                  {palette
+                                    .filter((color) =>
+                                      selectedColorIds.includes(color.id),
+                                    )
+                                    .map((color) => (
+                                      <option key={color.id} value={color.id}>
+                                        {color.nameAr || color.nameEn}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
                   <button

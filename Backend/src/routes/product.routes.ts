@@ -13,6 +13,7 @@ import {
   addProductImages,
   removeProductImage,
   reorderProductImages,
+  setImageColor,
 } from "../controllers/product.controller";
 
 const router = Router();
@@ -40,6 +41,10 @@ router.post("/:id/media", protect, adminOnly, upload.any(), processMedia, addPro
 // Remove gallery image by sort order or image id
 router.delete("/:id/images/:order", protect, adminOnly, removeProductImage);
 router.delete("/:id/media", protect, adminOnly, removeProductImage);
+
+// Link / unlink a gallery image to one of the product's colors (optional):
+// body { colorId: number | null } — null unlinks (image shown for every color)
+router.patch("/:id/images/:imageId/color", protect, adminOnly, setImageColor);
 
 // Reorder gallery images: body { currentOrder, newOrder }
 router.put("/:id/images/reorder", protect, adminOnly, reorderProductImages);

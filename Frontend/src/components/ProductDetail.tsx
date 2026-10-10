@@ -83,18 +83,24 @@ export default function ProductDetail({
   }, [productId, retryKey]);
 
   const color = product?.colors[selectedColor] ?? product?.colors[0];
-  // Show the selected color's images when it has its own gallery, otherwise show shared images.
+  // Visible gallery: images linked to the selected color PLUS unlinked
+  // (shared) images. Cover always first. Falls back to the whole gallery
+  // when everything is linked to other colors, so never blank.
   const images = useMemo(() => {
     if (!product) return [];
     const colorId = product.colors[selectedColor]?.backendId;
-    const colorImages = colorId === undefined
-      ? []
-      : product.images.filter((item) => item.colorId === colorId);
-    if (colorImages.length) return colorImages.map((item) => item.imageUrl);
-
-    const sharedImages = product.images.filter((item) => item.colorId == null).map((item) => item.imageUrl).filter(Boolean);
-    const cover = product.coverImageUrl || sharedImages[0] || "";
-    return cover ? [cover, ...sharedImages.filter((src) => src !== cover)] : sharedImages;
+    const visible = product.images.filter(
+      (item) => item.colorId == null || (colorId !== undefined && item.colorId === colorId),
+    );
+    const urls = visible.map((item) => item.imageUrl).filter(Boolean);
+    const fallback = urls.length
+      ? urls
+      : product.images.map((item) => item.imageUrl).filter(Boolean);
+    const cover = product.coverImageUrl || product.img || "";
+    const ordered = cover
+      ? [cover, ...fallback.filter((src) => src !== cover)]
+      : fallback;
+    return ordered.length ? ordered : product.img ? [product.img] : [];
   }, [product, selectedColor]);
   const image = images[activeImage] ?? "";
   const tagLabel = product?.tag === "new" ? "جديد" : product?.tag === "best_seller" ? "الأكثر مبيعاً" : null;

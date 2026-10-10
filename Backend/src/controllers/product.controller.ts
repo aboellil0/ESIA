@@ -70,6 +70,23 @@ function fileUrl(file: Express.Multer.File): string {
   return `/uploads/products/images/${file.filename}`;
 }
 
+// Optional per-image color link, sent alongside the file:
+// image[0] file + image[0].colorId=<palette-or-product color id> (or images[0].colorId).
+// Returns null when unlinked. Survives sanitize via the indexed-field allowlist.
+function galleryColorId(body: any, file: Express.Multer.File): number | null {
+  const m = file.fieldname.match(/^(?:image|images)\[(\d+)\]$/);
+  if (!m) return null;
+  const idx = m[1];
+  const raw = body[`image[${idx}].colorId`] ?? body[`images[${idx}].colorId`]
+    ?? body[`image[${idx}].color_id`] ?? body[`images[${idx}].color_id`];
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw AppError.badRequest(`image[${idx}].colorId must be a positive integer color ID or omitted`);
+  }
+  return n;
+}
+
 // Reject remote-URL image inputs — gallery and cover are files only now.
 function rejectUrlImageInputs(body: any): void {
   const urlKeys = ["imageUrl", "image_url", "mainImageUrl", "main_image_url", "coverImageUrl", "cover_image_url"];
@@ -288,7 +305,7 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
     const savedProduct = await productRepo.save(product);
 
     const paletteColors = await resolvePaletteColors(queryRunner.manager, colorIds);
-    await colorRepo.save(paletteColors.map((src: any) => colorRepo.create({
+    const savedColors = await colorRepo.save(paletteColors.map((src: any) => colorRepo.create({
       productId: savedProduct.id,
       nameEn: src.nameEn,
       nameAr: src.nameAr,
@@ -298,10 +315,22 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
     await sizeRepo.save(sizes.map((s) => sizeRepo.create({ productId: savedProduct.id, size: s.size as SizeEnum, isAvailable: s.isAvailable })));
 
     if (gallery.length > 0) {
+      // Optional per-image color link: input palette IDs map to the cloned
+      // rows by position (entities were created in colorIds order).
+      const galleryLinks = gallery.map((file) => {
+        const inputColorId = galleryColorId(req.body, file);
+        if (inputColorId === null) return null;
+        const pos = colorIds.indexOf(inputColorId);
+        if (pos === -1) {
+          throw AppError.badRequest(`image colorId ${inputColorId} must be one of the product colors [${colorIds.join(", ")}]`);
+        }
+        return savedColors[pos].id;
+      });
       await imageRepo.save(gallery.map((file, idx) => imageRepo.create({
         productId: savedProduct.id,
         imageUrl: fileUrl(file),
         sortOrder: idx,
+        colorId: galleryLinks[idx],
       })));
     }
 
@@ -411,13 +440,31 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     if (colorIds) {
       // resolve BEFORE deleting: ids may reference this product's own color rows
       const paletteColors = await resolvePaletteColors(queryRunner.manager, colorIds);
+      const txImageRepo = queryRunner.manager.getRepository(ProductImage);
+      // Capture image links BEFORE delete: the FK's ON DELETE SET NULL would
+      // wipe them, and we need them to remap onto the recreated rows.
+      const linkedBefore = (await txImageRepo.find({ where: { productId: id } }))
+        .filter((img) => img.colorId !== null && img.colorId !== undefined)
+        .map((img) => ({ id: img.id, colorId: img.colorId as number }));
+      const oldColors = await txColorRepo.find({ where: { productId: id } });
       await txColorRepo.delete({ productId: id });
-      await txColorRepo.save(paletteColors.map((src: any) => txColorRepo.create({
+      const newRows = await txColorRepo.save(paletteColors.map((src: any) => txColorRepo.create({
         productId: id,
         nameEn: src.nameEn,
         nameAr: src.nameAr,
         hexCode: src.hexCode,
       })));
+      // Remap gallery image color links onto the recreated rows by matching
+      // color identity (nameEn/nameAr/hexCode); dropped colors unlink images.
+      const colorKey = (c: any) =>
+        `${String(c.nameEn).trim().toLowerCase()}|${String(c.nameAr).trim()}|${String(c.hexCode).trim().toUpperCase()}`;
+      const oldById = new Map(oldColors.map((c) => [c.id, c]));
+      const newIdByKey = new Map(newRows.map((r: any) => [colorKey(r), r.id]));
+      for (const link of linkedBefore) {
+        const old = oldById.get(link.colorId);
+        const remapped = old ? (newIdByKey.get(colorKey(old)) ?? null) : null;
+        await txImageRepo.update(link.id, { colorId: remapped });
+      }
     }
     if (sizes) {
       await txSizeRepo.delete({ productId: id });
@@ -569,7 +616,7 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
       tag: p.tag,
       isActive: p.isActive,
       coverImageUrl: cover,
-      images: (p.images ?? []).map((img) => ({ id: img.id, imageUrl: img.imageUrl, sortOrder: img.sortOrder })),
+      images: (p.images ?? []).map((img) => ({ id: img.id, imageUrl: img.imageUrl, sortOrder: img.sortOrder, colorId: img.colorId ?? null })),
       colors: p.colors,
       createdAt: (p as any).createdAt,
     };
@@ -610,14 +657,54 @@ export const addProductImages = asyncHandler(async (req: Request, res: Response)
   }
 
   const nextOrder = product.images.length > 0 ? Math.max(...product.images.map((i) => i.sortOrder)) + 1 : 0;
+  // Optional per-image color link: ids must be this product's own color rows.
+  const colorRows = await AppDataSource.getRepository(ProductColor).find({ where: { productId: id } });
+  const ownColorIds = new Set(colorRows.map((c) => c.id));
+  const galleryLinks = gallery.map((file) => {
+    const colorId = galleryColorId(req.body, file);
+    if (colorId === null) return null;
+    if (!ownColorIds.has(colorId)) {
+      throw AppError.badRequest(`image colorId ${colorId} is not one of this product's colors`);
+    }
+    return colorId;
+  });
   await imageRepo.save(gallery.map((file, idx) => imageRepo.create({
     productId: id,
     imageUrl: fileUrl(file),
     sortOrder: nextOrder + idx,
+    colorId: galleryLinks[idx],
   })));
 
   const updated = await loadFullProduct(id);
   res.status(200).json({ success: true, message: "Images added successfully", data: updated, statusCode: 200 });
+});
+
+// Link / unlink a gallery image to one of the product's colors.
+// PATCH /:id/images/:imageId/color  body: { colorId: number | null }
+export const setImageColor = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const imageId = Number((req.params as any).imageId);
+  if (!Number.isInteger(id) || !Number.isInteger(imageId)) throw AppError.badRequest("Invalid product or image id");
+
+  const { colorId } = req.body;
+  let nextColorId: number | null = null;
+  if (colorId !== undefined && colorId !== null && colorId !== "") {
+    const n = Number(colorId);
+    if (!Number.isInteger(n) || n <= 0) throw AppError.badRequest("colorId must be a positive integer or null");
+    const color = await AppDataSource.getRepository(ProductColor).findOne({ where: { id: n, productId: id } });
+    if (!color) throw AppError.badRequest(`colorId ${n} is not one of this product's colors`);
+    nextColorId = n;
+  }
+
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+  const image = await imageRepo.findOne({ where: { id: imageId, productId: id } });
+  if (!image) throw AppError.notFound("Image not found for this product");
+
+  image.colorId = nextColorId;
+  await imageRepo.save(image);
+
+  const updated = await loadFullProduct(id);
+  res.status(200).json({ success: true, message: "Image color link updated successfully", data: updated, statusCode: 200 });
 });
 
 // Remove image by its sort_order (or id)

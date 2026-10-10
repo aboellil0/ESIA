@@ -82,6 +82,7 @@ export interface BackendProductImage {
   id: number;
   imageUrl: string;
   sortOrder: number;
+  colorId?: number | null;
 }
 
 export interface BackendProductCard {
