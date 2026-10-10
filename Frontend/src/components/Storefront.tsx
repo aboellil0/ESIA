@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { mapBackendProduct, type CatalogProduct } from "../data/catalog";
 import { getApiErrorMessage } from "../lib/api";
 import { useCategories } from "../lib/categoryContext";
@@ -175,20 +175,6 @@ export default function Storefront({
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Chip active={!categorySlug} onClick={() => onNavigate("home")}>
-                الكل
-              </Chip>
-              {categories.map((category) => (
-                <Chip
-                  key={category.id}
-                  active={categorySlug === category.slug}
-                  onClick={() => onNavigate("category:" + category.slug)}
-                >
-                  {category.name}
-                </Chip>
-              ))}
-            </div>
           </div>
 
           {(error || categoriesError) && (
@@ -237,38 +223,5 @@ export default function Storefront({
         </section>
       </>
     </SiteChrome>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-full border px-4 py-2 text-xs font-semibold"
-      style={
-        active
-          ? {
-              background: "var(--rose-deep)",
-              color: "#fff",
-              borderColor: "var(--rose-deep)",
-            }
-          : {
-              background: "#fff",
-              color: "var(--plum-soft)",
-              borderColor: "var(--line)",
-            }
-      }
-    >
-      {children}
-    </button>
   );
 }

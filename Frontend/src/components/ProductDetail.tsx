@@ -83,24 +83,18 @@ export default function ProductDetail({
   }, [productId, retryKey]);
 
   const color = product?.colors[selectedColor] ?? product?.colors[0];
-  // Visible gallery: images linked to the selected color PLUS unlinked
-  // (shared) images. Cover always first. Falls back to the whole gallery
-  // when everything is linked to other colors, so never blank.
+  // Show the selected color's images when it has its own gallery, otherwise show shared images.
   const images = useMemo(() => {
     if (!product) return [];
     const colorId = product.colors[selectedColor]?.backendId;
-    const visible = product.images.filter(
-      (item) => item.colorId == null || (colorId !== undefined && item.colorId === colorId),
-    );
-    const urls = visible.map((item) => item.imageUrl).filter(Boolean);
-    const fallback = urls.length
-      ? urls
-      : product.images.map((item) => item.imageUrl).filter(Boolean);
-    const cover = product.coverImageUrl || product.img || "";
-    const ordered = cover
-      ? [cover, ...fallback.filter((src) => src !== cover)]
-      : fallback;
-    return ordered.length ? ordered : product.img ? [product.img] : [];
+    const colorImages = colorId === undefined
+      ? []
+      : product.images.filter((item) => item.colorId === colorId);
+    if (colorImages.length) return colorImages.map((item) => item.imageUrl);
+
+    const sharedImages = product.images.filter((item) => item.colorId == null).map((item) => item.imageUrl).filter(Boolean);
+    const cover = product.coverImageUrl || sharedImages[0] || "";
+    return cover ? [cover, ...sharedImages.filter((src) => src !== cover)] : sharedImages;
   }, [product, selectedColor]);
   const image = images[activeImage] ?? "";
   const tagLabel = product?.tag === "new" ? "جديد" : product?.tag === "best_seller" ? "الأكثر مبيعاً" : null;
@@ -111,7 +105,11 @@ export default function ProductDetail({
   );
 
   const addToCart = async () => {
-    if (!product || (availableSizes.length > 0 && !selectedSize)) return;
+    if (
+      !product ||
+      (product.sizes.length > 0 &&
+        (availableSizes.length === 0 || !selectedSize))
+    ) return;
     setSubmitting(true);
     setCartMessage(null);
     try {
@@ -147,16 +145,19 @@ export default function ProductDetail({
         {!loading && !error && product && (
           <>
             <div className="grid gap-8 lg:grid-cols-2">
-              <div>
-                <div className="relative overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
+              <div className="flex flex-col">
+                <div className="relative order-2 overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
                   {image ? <img src={image} alt={product.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
                   {tagLabel && <span className="absolute end-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "var(--rose-deep)" }}>{tagLabel}</span>}
                   {!product.isActive && <span className="absolute bottom-3 start-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white">غير متاح حالياً</span>}
                 </div>
-                {images.length > 1 && <div className="mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
-                {product.colors.length > 0 && <div className="mt-4">
+                {images.length > 1 && <div className="order-3 mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+                {product.colors.length > 0 && <div className="order-1 mb-4">
                   <p className="mb-3 text-sm font-semibold">اللون: {color?.nameAr || color?.nameEn}</p>
-                  <div className="flex gap-3">{product.colors.map((item, index) => <button key={item.backendId ?? index} type="button" aria-label={item.nameAr} aria-pressed={selectedColor === index} onClick={() => { setSelectedColor(index); setActiveImage(0); }} className="h-8 w-8 rounded-full border-2" style={{ background: item.hexCode ?? item.color, borderColor: selectedColor === index ? "var(--plum)" : "var(--line)" }} />)}</div>
+                  <div className="flex flex-wrap gap-4">{product.colors.map((item, index) => {
+                    const selected = selectedColor === index;
+                    return <button key={item.backendId ?? index} type="button" aria-label={item.nameAr} aria-pressed={selected} onClick={() => { setSelectedColor(index); setActiveImage(0); }} className={`relative h-9 w-9 rounded-full border-2 transition-transform ${selected ? "scale-110" : "hover:scale-105"}`} style={{ background: item.hexCode ?? item.color, borderColor: selected ? "var(--rose-deep)" : "var(--line)", boxShadow: selected ? "0 0 0 2px #fff, 0 0 0 4px var(--rose-deep)" : undefined }}>{selected && <span aria-hidden="true" className="grid h-4 w-4 place-items-center rounded-full bg-black/50 text-[10px] font-bold text-white">✓</span>}</button>;
+                  })}</div>
                 </div>}
               </div>
               <div className="rounded-3xl bg-white p-6 md:p-8" style={{ border: "1px solid var(--line)" }}>
@@ -172,7 +173,8 @@ export default function ProductDetail({
                   <p className="mb-3 text-sm font-semibold">المقاس</p>
                   <div className="flex flex-wrap gap-2">{product.sizes.map((size) => {
                     const available = !product.unavailableSizes.includes(size);
-                    return <button key={size} type="button" disabled={!available} onClick={() => setSelectedSize(size)} className="min-w-12 rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40" style={{ borderColor: selectedSize === size ? "var(--rose-deep)" : "var(--line)", background: selectedSize === size ? "var(--blush-soft)" : "#fff" }}>{size}</button>;
+                    const selected = available && selectedSize === size;
+                    return <button key={size} type="button" disabled={!available} title={available ? undefined : "نفد"} aria-label={`المقاس ${size}${available ? "" : " - نفد"}`} aria-pressed={selected} onClick={() => setSelectedSize(size)} className={`relative min-w-12 overflow-hidden rounded-xl border px-3 py-2 text-sm transition ${selected ? "font-bold" : ""} ${available ? "" : "cursor-not-allowed text-gray-500 opacity-50"}`} style={{ borderColor: selected ? "var(--rose-deep)" : "var(--line)", background: selected ? "var(--blush-soft)" : available ? "#fff" : "#f2eeee", boxShadow: selected ? "0 0 0 2px #fff, 0 0 0 4px var(--rose-deep)" : undefined }}><span className={available ? "" : "line-through"}>{size}{selected && <span aria-hidden="true" className="ms-1 text-xs">✓</span>}</span>{!available && <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="h-[1.5px] w-[140%] -rotate-45 bg-gray-500/80" /></span>}</button>;
                   })}</div>
                   {!availableSizes.length && <p className="mt-2 text-sm text-red-700">لا توجد مقاسات متاحة حالياً.</p>}
                 </div>
@@ -183,7 +185,7 @@ export default function ProductDetail({
                     <span className="min-w-8 text-center">{quantity}</span>
                     <button type="button" disabled={quantity >= 99} onClick={() => setQuantity((value) => Math.min(99, value + 1))} className="px-4 py-2">+</button>
                   </div>
-                  <button type="button" onClick={addToCart} disabled={(availableSizes.length > 0 && !selectedSize) || submitting || !product.isActive} className="flex-1 rounded-xl px-6 py-3 font-bold text-white disabled:opacity-50" style={{ background: "var(--rose-deep)" }}>{submitting ? "جارٍ الإضافة..." : "أضيفي إلى السلة"}</button>
+                  <button type="button" onClick={addToCart} disabled={(product.sizes.length > 0 && (!availableSizes.length || !selectedSize)) || submitting || !product.isActive} className="flex-1 rounded-xl px-6 py-3 font-bold text-white disabled:opacity-50" style={{ background: "var(--rose-deep)" }}>{submitting ? "جارٍ الإضافة..." : "أضيفي إلى السلة"}</button>
                 </div>
                 {cartMessage && <p role="status" className="mt-4 text-sm" style={{ color: "var(--plum-soft)" }}>{cartMessage}</p>}
                 {product.fabric && <div className="mt-8 border-t pt-5" style={{ borderColor: "var(--line)" }}><h2 className="font-semibold">التفاصيل</h2><p className="mt-2 leading-7" style={{ color: "var(--plum-soft)" }}>{product.fabric}</p></div>}

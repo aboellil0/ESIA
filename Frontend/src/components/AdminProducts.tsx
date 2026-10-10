@@ -40,23 +40,8 @@ type ProductRow = {
   images?: ProductImage[];
 };
 
-const SIZES = [
-  "XS",
-  "S",
-  "M",
-  "L",
-  "XL",
-  "2X",
-  "3X",
-  "6-7Y",
-  "7-8Y",
-  "8-9Y",
-  "9-10Y",
-  "10-11Y",
-  "11-12Y",
-];
 const inputClass =
-  "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63]";
+  "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63] max-[767px]:min-w-0";
 const btnClass =
   "rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50";
 
@@ -91,9 +76,9 @@ export default function AdminProducts({
   const [form, setForm] = useState(emptyForm);
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
+  const [unavailableSizes, setUnavailableSizes] = useState<string[]>([]);
+  const [sizeDraft, setSizeDraft] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  // Optional per-file color link for the create form (parallel to imageFiles).
-  const [imageColorIds, setImageColorIds] = useState<(number | null)[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [galleryColorId, setGalleryColorId] = useState("");
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -152,8 +137,9 @@ export default function AdminProducts({
     setForm(emptyForm);
     setSelectedColorIds([]);
     setSelectedSizes(["S", "M", "L"]);
+    setUnavailableSizes([]);
+    setSizeDraft("");
     setImageFiles([]);
-    setImageColorIds([]);
     setCoverFile(null);
     setNewImageFiles([]);
     setGalleryColorId("");
@@ -194,12 +180,14 @@ export default function AdminProducts({
         })
         .filter((id) => Number.isFinite(id)),
     );
-    const sizes = (product.sizes ?? [])
-      .filter((s) => s.isAvailable !== false)
-      .map((s) => s.size);
+    const productSizes = product.sizes ?? [];
+    const sizes = productSizes.map((s) => s.size);
     setSelectedSizes(sizes.length ? sizes : []);
+    setUnavailableSizes(
+      productSizes.filter((s) => s.isAvailable === false).map((s) => s.size),
+    );
+    setSizeDraft("");
     setImageFiles([]);
-    setImageColorIds([]);
     setCoverFile(null);
     setNewImageFiles([]);
     setGalleryColorId("");
@@ -257,7 +245,10 @@ export default function AdminProducts({
       formData.append(
         "sizes",
         JSON.stringify(
-          selectedSizes.map((size) => ({ size, isAvailable: true })),
+          selectedSizes.map((size) => ({
+            size,
+            isAvailable: !unavailableSizes.includes(size),
+          })),
         ),
       );
 
@@ -269,10 +260,6 @@ export default function AdminProducts({
       } else {
         imageFiles.forEach((file, index) => {
           formData.append("image[" + index + "]", file);
-          const link = imageColorIds[index];
-          if (link !== null && link !== undefined) {
-            formData.append("image[" + index + "].colorId", String(link));
-          }
         });
         if (coverFile) formData.append("cover", coverFile);
         await productsService.create(formData);
@@ -349,16 +336,10 @@ export default function AdminProducts({
     setNotice(null);
     try {
       const formData = makeGalleryForm(newImageFiles);
-      // Backend reads the link per file: image[N].colorId (top-level colorId is ignored).
-      if (galleryColorId) {
-        newImageFiles.forEach((_, index) => {
-          formData.append("image[" + index + "].colorId", galleryColorId);
-        });
-      }
+      if (galleryColorId) formData.append("colorId", galleryColorId);
       const updated = await productsService.addImages(selected.id, formData);
       setSelected(updated as ProductRow);
       setNewImageFiles([]);
-      setGalleryColorId("");
       setNotice("تمت إضافة الصور.");
       await loadProducts();
     } catch (saveError) {
@@ -432,12 +413,17 @@ export default function AdminProducts({
     }
   };
 
-  const toggleSize = (size: string) =>
-    setSelectedSizes((values) =>
-      values.includes(size)
-        ? values.filter((value) => value !== size)
-        : [...values, size],
-    );
+  const addSize = () => {
+    const size = sizeDraft.trim();
+    if (!size) return;
+    if (selectedSizes.some((value) => value.toLowerCase() === size.toLowerCase())) {
+      setError("هذا المقاس مضاف بالفعل.");
+      return;
+    }
+    setSelectedSizes((values) => [...values, size]);
+    setSizeDraft("");
+    setError(null);
+  };
   const toggleColor = (id: number) =>
     setSelectedColorIds((values) =>
       values.includes(id)
@@ -464,26 +450,26 @@ export default function AdminProducts({
           </strong>
           <span className="ms-3 text-sm">إدارة المنتجات</span>
         </div>
-        <nav className="flex flex-wrap gap-2">
+        <nav className="flex flex-wrap gap-2 max-[767px]:grid max-[767px]:w-full max-[767px]:grid-cols-2">
           <button
-            className={btnClass + " border"}
+            className={btnClass + " border max-[767px]:w-full"}
             onClick={() => onNavigate("admin-orders")}
           >
             الطلبات
           </button>
           <button
-            className={btnClass + " text-white"}
+            className={btnClass + " text-white max-[767px]:w-full"}
             style={{ background: "var(--rose-deep)" }}
           >
             المنتجات
           </button>
           <button
-            className={btnClass + " border"}
+            className={btnClass + " border max-[767px]:w-full"}
             onClick={() => onNavigate("admin-catalog")}
           >
             الفئات والألوان
           </button>
-          <button className={btnClass + " border"} onClick={onLogout}>
+          <button className={btnClass + " border max-[767px]:w-full"} onClick={onLogout}>
             تسجيل الخروج
           </button>
         </nav>
@@ -517,17 +503,17 @@ export default function AdminProducts({
             جارٍ تحميل المنتجات...
           </p>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] max-[767px]:min-w-0">
             <section
-              className="h-fit rounded-2xl bg-white p-5"
+              className="h-fit rounded-2xl bg-white p-5 max-[767px]:min-w-0"
               style={{ border: "1px solid var(--line)" }}
             >
-              <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="mb-4 flex items-center justify-between gap-2 max-[767px]:flex-wrap">
                 <h1 className="text-xl font-bold">المنتجات الحالية</h1>
                 <button
                   type="button"
                   onClick={startNew}
-                  className={btnClass + " border"}
+                  className={btnClass + " border max-[767px]:shrink-0 max-[767px]:whitespace-nowrap"}
                   disabled={busy}
                 >
                   + منتج جديد
@@ -565,7 +551,7 @@ export default function AdminProducts({
                           <span className="h-14 w-12 rounded-lg bg-[#f5e9e8]" />
                         )}
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate font-semibold">
+                          <span className="block truncate font-semibold max-[767px]:whitespace-normal">
                             {product.name}
                           </span>
                           <span className="text-xs text-gray-500">
@@ -581,10 +567,10 @@ export default function AdminProducts({
               )}
             </section>
 
-            <div className="space-y-6">
+            <div className="space-y-6 max-[767px]:min-w-0">
               <section
                 ref={formRef}
-                className="scroll-mt-24 rounded-2xl bg-white p-5"
+                className="scroll-mt-24 rounded-2xl bg-white p-5 max-[767px]:min-w-0 max-[767px]:scroll-mt-[170px]"
                 style={{ border: "1px solid var(--line)" }}
               >
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -616,7 +602,7 @@ export default function AdminProducts({
                 </div>
                 <form
                   onSubmit={submitProduct}
-                  className="grid gap-3 md:grid-cols-2"
+                  className="grid gap-3 md:grid-cols-2 max-[767px]:min-w-0"
                 >
                   <label className="text-sm">
                     اسم المنتج
@@ -724,7 +710,7 @@ export default function AdminProducts({
                     />
                     منتج نشط (يظهر في المتجر)
                   </label>
-                  <fieldset className="md:col-span-2">
+                  <fieldset className="md:col-span-2 max-[767px]:min-w-0">
                     <legend className="mb-2 text-sm font-semibold">
                       الألوان
                     </legend>
@@ -756,23 +742,74 @@ export default function AdminProducts({
                       </p>
                     )}
                   </fieldset>
-                  <fieldset className="md:col-span-2">
+                  <fieldset className="md:col-span-2 max-[767px]:min-w-0">
                     <legend className="mb-2 text-sm font-semibold">
                       المقاسات
                     </legend>
-                    <div className="flex gap-4">
-                      {SIZES.map((size) => (
-                        <label
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="min-w-48 flex-1 text-sm">
+                        مقاس جديد
+                        <input
+                          value={sizeDraft}
+                          onChange={(event) => setSizeDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addSize();
+                            }
+                          }}
+                          maxLength={50}
+                          className={inputClass}
+                          placeholder="مثال: 2X أو 6-7Y أو مقاس موحد"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addSize}
+                        className={btnClass + " border"}
+                        style={{ borderColor: "var(--line)" }}
+                      >
+                        أضف المقاس
+                      </button>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedSizes.map((size) => (
+                        <span
                           key={size}
-                          className="flex items-center gap-1.5 text-sm"
+                          className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm"
+                          style={{ borderColor: "var(--line)" }}
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedSizes.includes(size)}
-                            onChange={() => toggleSize(size)}
-                          />
                           {size}
-                        </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSizes((values) =>
+                                values.filter((value) => value !== size),
+                              );
+                              setUnavailableSizes((values) =>
+                                values.filter((value) => value !== size),
+                              );
+                            }}
+                            aria-label={`Remove size ${size}`}
+                            className="font-bold"
+                          >
+                            ×
+                          </button>
+                          <label className="inline-flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={!unavailableSizes.includes(size)}
+                              onChange={() =>
+                                setUnavailableSizes((values) =>
+                                  values.includes(size)
+                                    ? values.filter((value) => value !== size)
+                                    : [...values, size],
+                                )
+                              }
+                            />
+                            {unavailableSizes.includes(size) ? "نفد" : "متاح"}
+                          </label>
+                        </span>
                       ))}
                     </div>
                   </fieldset>
@@ -793,64 +830,21 @@ export default function AdminProducts({
                           صورة من المعرض.
                         </span>
                       </label>
-                      <div className="text-sm md:col-span-2">
-                        <span>صور المعرض</span>
+                      <label className="text-sm">
+                        صور المعرض
                         <input
                           type="file"
                           accept="image/*"
                           multiple
-                          onChange={(event) => {
-                            const files = Array.from(event.target.files ?? []);
-                            setImageFiles(files);
-                            setImageColorIds(files.map(() => null));
-                          }}
+                          onChange={(event) =>
+                            setImageFiles(Array.from(event.target.files ?? []))
+                          }
                           className={inputClass}
                         />
                         <span className="mt-1 block text-xs text-gray-500">
-                          اختياري: اربطي كل صورة بلون لتظهر عند اختياره في صفحة
-                          المنتج. الصور بدون لون تظهر دائماً.
+                          بعد حفظ المنتج، يمكنك اختيار لون لإضافة صور خاصة به.
                         </span>
-                        {imageFiles.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {imageFiles.map((file, index) => (
-                              <div
-                                key={index + "-" + file.name + "-" + file.size}
-                                className="flex items-center gap-2 rounded-xl border p-2"
-                                style={{ borderColor: "var(--line)" }}
-                              >
-                                <span className="min-w-0 flex-1 truncate text-xs">
-                                  {file.name}
-                                </span>
-                                <select
-                                  value={imageColorIds[index] ?? ""}
-                                  disabled={busy}
-                                  onChange={(event) =>
-                                    setImageColorIds((prev) => {
-                                      const next = [...prev];
-                                      next[index] = event.target.value
-                                        ? Number(event.target.value)
-                                        : null;
-                                      return next;
-                                    })
-                                  }
-                                  className="rounded-lg border p-1.5 text-xs"
-                                >
-                                  <option value="">بدون لون</option>
-                                  {palette
-                                    .filter((color) =>
-                                      selectedColorIds.includes(color.id),
-                                    )
-                                    .map((color) => (
-                                      <option key={color.id} value={color.id}>
-                                        {color.nameAr || color.nameEn}
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      </label>
                     </>
                   )}
                   <button
@@ -870,7 +864,7 @@ export default function AdminProducts({
               {selected && isEditing && (
                 <>
                   <section
-                    className="rounded-2xl bg-white p-5"
+                    className="rounded-2xl bg-white p-5 max-[767px]:min-w-0"
                     style={{ border: "1px solid var(--line)" }}
                   >
                     <h2 className="mb-1 text-xl font-bold">صورة الغلاف</h2>
@@ -890,7 +884,7 @@ export default function AdminProducts({
                           لا يوجد غلاف
                         </span>
                       )}
-                      <div className="min-w-[220px] flex-1 space-y-2">
+                      <div className="min-w-[220px] flex-1 space-y-2 max-[767px]:basis-full max-[767px]:min-w-0">
                         <input
                           type="file"
                           accept="image/*"
@@ -925,7 +919,7 @@ export default function AdminProducts({
                   </section>
 
                   <section
-                    className="rounded-2xl bg-white p-5"
+                    className="rounded-2xl bg-white p-5 max-[767px]:min-w-0"
                     style={{ border: "1px solid var(--line)" }}
                   >
                     <h2 className="text-xl font-bold">
@@ -961,7 +955,7 @@ export default function AdminProducts({
                         onChange={(event) =>
                           setNewImageFiles(Array.from(event.target.files ?? []))
                         }
-                        className="min-w-0 flex-1 rounded-xl border p-2 text-sm"
+                        className="min-w-0 flex-1 rounded-xl border p-2 text-sm max-[767px]:basis-full max-[767px]:w-full"
                       />
                       <button
                         type="button"

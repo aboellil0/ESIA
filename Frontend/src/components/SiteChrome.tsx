@@ -34,8 +34,13 @@ export function SiteChrome({
           <nav className="hidden items-center gap-5 md:flex">
             {links.map((link) => (
               <button key={link.view} type="button" onClick={() => onNavigate(link.view)}
-                className="bg-transparent p-0 text-sm font-medium"
-                style={{ color: activeView === link.view ? "var(--rose-deep)" : "var(--plum-soft)" }}>
+                aria-current={activeView === link.view ? "page" : undefined}
+                className="bg-transparent p-0 pb-1 text-sm"
+                style={{
+                  color: activeView === link.view ? "var(--rose-deep)" : "var(--plum-soft)",
+                  fontWeight: activeView === link.view ? 700 : 500,
+                  borderBottom: activeView === link.view ? "2px solid var(--rose-deep)" : "2px solid transparent",
+                }}>
                 {link.label}
               </button>
             ))}
