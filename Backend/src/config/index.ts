@@ -17,6 +17,10 @@ interface Config {
   publicUrl: string;
   emailVerificationExpiresHours: number;
   passwordResetExpiresMinutes: number;
+  // Single source of truth for the shipping fee (EGP). The backend adds it
+  // when creating orders; the frontend only displays it (fetched from
+  // GET /orders/shipping-fee, with a matching fallback default).
+  shippingFee: number;
 }
 
 const config: Config = {
@@ -41,6 +45,7 @@ const config: Config = {
   passwordResetExpiresMinutes: process.env.PASSWORD_RESET_EXPIRES_MINUTES
     ? Number(process.env.PASSWORD_RESET_EXPIRES_MINUTES)
     : 60,
+  shippingFee: process.env.SHIPPING_FEE ? Number(process.env.SHIPPING_FEE) : 80,
 };
 
 export default config;

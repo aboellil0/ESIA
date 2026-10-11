@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createOrder,
   trackOrder,
+  getShippingFee,
   getUserOrders,
   getUserOrderById,
   getAllOrders,
@@ -22,6 +23,9 @@ const router = Router();
 // while guests without a token still order as guests.
 router.post("/", optionalProtect, upload.any(), processMedia, createOrder);
 router.get("/track/:orderNumber", trackOrder);
+// Public single source of truth for the shipping fee (used by checkout display).
+// Must stay above "/:id" so "shipping-fee" is not mistaken for an order id.
+router.get("/shipping-fee", getShippingFee);
 
 // Authenticated user routes
 router.get("/my-orders", protect, userOnly, requireVerifiedUser, getUserOrders);

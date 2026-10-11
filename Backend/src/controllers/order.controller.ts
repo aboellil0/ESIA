@@ -8,6 +8,8 @@ import { toUrlPath } from "../middlewares/upload.middleware";
 import { AppDataSource } from "../config/data-source";
 import { Order } from "../models/Order";
 import { User } from "../models/User";
+import config from "../config";
+import { computeOrderTotal } from "../utils/pricing";
 
 function getQueryString(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -36,6 +38,8 @@ function getProofImageUrl(req: Request): string | null {
 }
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
+  // NOTE: no totalAmount here — the client-sent total is ignored on purpose.
+  // The backend recomputes subtotal + shipping fee (single source of truth).
   const {
     customerName,
     email,
@@ -43,7 +47,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     address,
     city,
     items,
-    totalAmount,
     notes,
     // Optional payment fields - if provided, order will be created with payment submitted
     paymentMethod,
@@ -67,15 +70,29 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       throw new AppError("Invalid items format", 400);
     }
   }
-  const total = typeof totalAmount === "string" ? Number(totalAmount) : totalAmount;
   const paymentTotal = typeof paymentAmount === "string" ? Number(paymentAmount) : paymentAmount;
 
-  if (!customerName || !email || !phone || !address || !itemsParsed || !total) {
-    throw new AppError("Missing required fields: customerName, email, phone, address, items, totalAmount", 400);
+  if (!customerName || !email || !phone || !address || !itemsParsed) {
+    throw new AppError("Missing required fields: customerName, email, phone, address, items", 400);
   }
 
   if (!Array.isArray(itemsParsed) || itemsParsed.length === 0) {
     throw new AppError("Order must have at least one item", 400);
+  }
+
+  const mappedItems = itemsParsed.map((item: any) => ({
+    productId: item.productId,
+    productName: item.productName || item.name,
+    unitPrice: item.unitPrice || item.price,
+    colorId: item.colorId,
+    size: item.size,
+    quantity: item.quantity || item.qty || 1,
+  }));
+
+  // Backend-computed total — never trusts the frontend value.
+  const total = computeOrderTotal(mappedItems, config.shippingFee);
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new AppError("Invalid order total", 400);
   }
 
   // If any payment field is provided, validate all required payment fields
@@ -101,14 +118,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     phone,
     address,
     city,
-    items: itemsParsed.map((item: any) => ({
-      productId: item.productId,
-      productName: item.productName || item.name,
-      unitPrice: item.unitPrice || item.price,
-      colorId: item.colorId,
-      size: item.size,
-      quantity: item.quantity || item.qty || 1,
-    })),
+    items: mappedItems,
     totalAmount: total,
     userId,
     notes,
@@ -158,6 +168,11 @@ export const trackOrder = asyncHandler(async (req: Request, res: Response) => {
     statusCode: 200,
   });
 });
+
+// Public: current shipping fee (EGP) — single source of truth for the storefront.
+export const getShippingFee = (_req: Request, res: Response): void => {
+  res.json({ success: true, message: "Operation completed successfully", data: { shippingFee: config.shippingFee }, statusCode: 200 });
+};
 
 export const getUserOrders = asyncHandler(async (req: Request, res: Response) => {
   const userId = Number(req.user!.id);

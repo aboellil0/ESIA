@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { CartItem } from "../App";
 import { getApiErrorMessage } from "../lib/api";
 import { DEPOSIT_RATE, RECEIPT_MAX_BYTES, SHIPPING_FEE } from "../lib/storeConfig";
+import { ordersService } from "../services/orders";
 
 export interface CheckoutSavedInfo {
   name?: string | null;
@@ -97,7 +98,23 @@ export default function Checkout({
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
     [items],
   );
-  const total = subtotal + (items.length ? SHIPPING_FEE : 0);
+  // Shipping fee source of truth is the backend (GET /orders/shipping-fee);
+  // the local constant is only a fallback until it loads.
+  const [shippingFee, setShippingFee] = useState(SHIPPING_FEE);
+  useEffect(() => {
+    let current = true;
+    ordersService
+      .shippingFee()
+      .then((result) => {
+        const fee = Number(result?.shippingFee);
+        if (current && Number.isFinite(fee) && fee >= 0) setShippingFee(fee);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, []);
+  const total = subtotal + (items.length ? shippingFee : 0);
   const depositAmount = Math.round((total * DEPOSIT_RATE + Number.EPSILON) * 100) / 100;
   const remainingAmount = Math.round((total - depositAmount + Number.EPSILON) * 100) / 100;
 
@@ -487,7 +504,7 @@ export default function Checkout({
               </div>
               <div className="flex justify-between">
                 <span>الشحن</span>
-                <span>{SHIPPING_FEE.toLocaleString()} ج.م</span>
+                <span>{shippingFee.toLocaleString()} ج.م</span>
               </div>
               <div className="flex justify-between text-lg font-bold">
                 <span>الإجمالي</span>

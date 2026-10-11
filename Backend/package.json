@@ -6,6 +6,7 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "test:sizes": "tsx scripts/test-sizes.ts",
+        "test:shipping": "tsx scripts/test-shipping.ts",
         "build": "tsc",
         "dev": "tsx watch src/server.ts",
         "start": "node dist/server.js",

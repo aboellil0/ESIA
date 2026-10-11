@@ -8,7 +8,10 @@ export interface OrderListParams {
 }
 
 export const ordersService = {
-  async create(input: FormData | Record<string, unknown>) {
+  async shippingFee() {
+    const response = await api.get("/orders/shipping-fee");
+    return unwrapApiResult<{ shippingFee: number }>(response);
+  },  async create(input: FormData | Record<string, unknown>) {
     const response = await api.post("/orders", input);
     return unwrapApiResult<any>(response);
   },
