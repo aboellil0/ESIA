@@ -4,7 +4,6 @@ import { CartItem } from "../models/CartItem";
 import { Product } from "../models/Product";
 import { Color } from "../models/Color";
 import { ProductColor } from "../models/ProductColor";
-import { ProductSize } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import crypto from "crypto";
 
@@ -58,7 +57,7 @@ class CartServiceImpl {
   private buildItemWhereClause(cartId: number, input: CartItemInput) {
     const where: any = { cartId, productId: input.productId };
     if (input.colorId) where.colorId = input.colorId;
-    if (input.size) where.size = input.size as ProductSize;
+    if (input.size) where.size = input.size;
     return where;
   }
 
@@ -145,7 +144,7 @@ class CartServiceImpl {
         productName: product.name,
         unitPrice: product.price,
         colorId: input.colorId ?? null,
-        size: input.size ? (input.size as ProductSize) : null,
+        size: input.size ? input.size : null,
         quantity: input.quantity,
         productImage: product.coverImageUrl ?? null,
       });

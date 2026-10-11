@@ -3,7 +3,6 @@ import { Expose } from "class-transformer";
 import { Cart } from "./Cart";
 import { Product } from "./Product";
 import { Color } from "./Color";
-import { ProductSize } from "./enums";
 
 @Entity("cart_items")
 export class CartItem {
@@ -44,9 +43,10 @@ export class CartItem {
   @JoinColumn({ name: "color_id" })
   color!: Color | null;
 
-  @Column({ type: "enum", enum: ProductSize, nullable: true })
+  // Free-text size snapshot (was S/M/L/XL enum — see migration, data preserved).
+  @Column({ type: "varchar", length: 50, nullable: true })
   @Expose()
-  size!: ProductSize | null;
+  size!: string | null;
 
   @Column({ type: "int", default: 1 })
   @Expose()

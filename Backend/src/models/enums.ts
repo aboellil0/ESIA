@@ -13,6 +13,8 @@ export enum DefaultShape {
   CIRCULAR = "circular",
 }
 
+// Legacy size set — kept for reference only. Sizes are free-text (varchar 50)
+// since the ProductSizeText migration; do NOT validate against this enum.
 export enum ProductSize {
   S = "S",
   M = "M",

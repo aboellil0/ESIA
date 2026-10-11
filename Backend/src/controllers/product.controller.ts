@@ -9,7 +9,7 @@ import { Category } from "../models/Category";
 import { Color as PaletteColor } from "../models/Color";
 import { OrderItem } from "../models/OrderItem";
 import { CartItem } from "../models/CartItem";
-import { ProductTag, DefaultShape, ProductSize as SizeEnum } from "../models/enums";
+import { ProductTag, DefaultShape } from "../models/enums";
 import { AppError } from "../utils/AppError";
 import { asyncHandler } from "../utils/asyncHandler";
 import { deleteFile } from "../utils/fileUtils";
@@ -137,14 +137,13 @@ function parseColorsInput(raw: any): number[] {
   return ids;
 }
 
-function parseSizesInput(raw: any): { size: string; isAvailable: boolean }[] {
+export function parseSizesInput(raw: any): { size: string; isAvailable: boolean }[] {
   const parsedSizes = tryParseJsonArray(raw);
   const arr = parsedSizes !== null ? parsedSizes : raw;
   if (!Array.isArray(arr) || arr.length === 0) {
-    throw AppError.badRequest("sizes is required and must be a non-empty array of { size, isAvailable } or size strings (S,M,L,XL)");
+    throw AppError.badRequest("sizes is required and must be a non-empty array of { size, isAvailable } or size name strings");
   }
-  if (arr.length > 10) throw AppError.badRequest("sizes must contain at most 10 items");
-  const validSizes = Object.values(SizeEnum);
+  // No count cap and no fixed S/M/L/XL list: free-text size names.
   const seen = new Set<string>();
   return arr.map((s: any, idx: number) => {
     let sizeVal: string | undefined;
@@ -158,19 +157,20 @@ function parseSizesInput(raw: any): { size: string; isAvailable: boolean }[] {
     } else {
       throw AppError.badRequest(`sizes[${idx}] must be a string or object { size }`);
     }
-    if (!sizeVal || typeof sizeVal !== "string") throw AppError.badRequest(`sizes[${idx}].size is required`);
-    if (!validSizes.includes(sizeVal as SizeEnum)) {
-      throw AppError.badRequest(`sizes[${idx}].size must be one of: ${validSizes.join(", ")}`);
-    }
-    if (seen.has(sizeVal)) throw AppError.badRequest(`sizes[${idx}].size "${sizeVal}" is duplicate within product`);
-    seen.add(sizeVal);
+    if (typeof sizeVal !== "string") throw AppError.badRequest(`sizes[${idx}].size is required`);
+    const name = sizeVal.trim();
+    if (!name) throw AppError.badRequest(`sizes[${idx}].size must be a non-empty string`);
+    if (name.length > 50) throw AppError.badRequest(`sizes[${idx}].size must be at most 50 characters`);
+    const key = name.toLowerCase();
+    if (seen.has(key)) throw AppError.badRequest(`sizes[${idx}].size "${name}" is duplicate within product`);
+    seen.add(key);
     if (isAvailable !== undefined && typeof isAvailable !== "boolean") {
       if (isAvailable !== 0 && isAvailable !== 1 && isAvailable !== "true" && isAvailable !== "false") {
         throw AppError.badRequest(`sizes[${idx}].isAvailable must be a boolean`);
       }
     }
     return {
-      size: sizeVal,
+      size: name,
       isAvailable: Boolean(isAvailable === "true" ? true : isAvailable === "false" ? false : isAvailable),
     };
   });
@@ -312,7 +312,7 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
       hexCode: src.hexCode,
     })));
 
-    await sizeRepo.save(sizes.map((s) => sizeRepo.create({ productId: savedProduct.id, size: s.size as SizeEnum, isAvailable: s.isAvailable })));
+    await sizeRepo.save(sizes.map((s) => sizeRepo.create({ productId: savedProduct.id, size: s.size, isAvailable: s.isAvailable })));
 
     if (gallery.length > 0) {
       // Optional per-image color link: input palette IDs map to the cloned
@@ -468,7 +468,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     }
     if (sizes) {
       await txSizeRepo.delete({ productId: id });
-      await txSizeRepo.save(sizes.map((s) => txSizeRepo.create({ productId: id, size: s.size as SizeEnum, isAvailable: s.isAvailable })));
+      await txSizeRepo.save(sizes.map((s) => txSizeRepo.create({ productId: id, size: s.size, isAvailable: s.isAvailable })));
     }
 
     await queryRunner.commitTransaction();
