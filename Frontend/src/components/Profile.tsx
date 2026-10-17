@@ -516,7 +516,7 @@ export default function Profile({
               {selected.items?.map((item: any) => (
                 <div key={item.id} className="flex justify-between rounded-xl bg-[#fbf5ef] p-3 text-sm">
                   <span>
-                    {item.productName} × {item.quantity} · {item.size ?? "—"}
+                    {item.productName} × {item.quantity} · {item.colorNameAr ?? item.colorNameEn ?? "—"} · {item.size ?? "—"}
                   </span>
                   <span>{Number(item.unitPrice).toLocaleString()} ج.م</span>
                 </div>

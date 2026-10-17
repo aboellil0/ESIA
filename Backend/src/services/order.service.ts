@@ -123,7 +123,7 @@ class OrderServiceImpl {
 
       const fullOrder = await manager.findOne(Order, {
         where: { id: savedOrder.id },
-        relations: { items: true, user: true },
+        relations: { items: { color: true }, user: true },
       });
 
       if (!fullOrder) {
@@ -137,14 +137,14 @@ class OrderServiceImpl {
   async getOrderByNumber(orderNumber: string): Promise<Order | null> {
     return this.orderRepo.findOne({
       where: { orderNumber },
-      relations: { items: true, user: true, reviewedByAdmin: true },
+      relations: { items: { color: true }, user: true, reviewedByAdmin: true },
     });
   }
 
   async getOrderById(id: number): Promise<Order | null> {
     return this.orderRepo.findOne({
       where: { id },
-      relations: { items: true, user: true, reviewedByAdmin: true },
+      relations: { items: { color: true }, user: true, reviewedByAdmin: true },
     });
   }
 
@@ -153,6 +153,7 @@ class OrderServiceImpl {
     const query = this.orderRepo
       .createQueryBuilder("order")
       .leftJoinAndSelect("order.items", "items")
+      .leftJoinAndSelect("items.color", "itemColor")
       .leftJoinAndSelect("order.user", "user")
       .where("order.userId = :userId", { userId });
 
@@ -184,6 +185,7 @@ class OrderServiceImpl {
     const query = this.orderRepo
       .createQueryBuilder("order")
       .leftJoinAndSelect("order.items", "items")
+      .leftJoinAndSelect("items.color", "itemColor")
       .leftJoinAndSelect("order.user", "user")
       .leftJoinAndSelect("order.reviewedByAdmin", "reviewedByAdmin");
 
@@ -225,7 +227,7 @@ class OrderServiceImpl {
   ): Promise<Order> {
     const order = await this.orderRepo.findOne({
       where: { id: orderId },
-      relations: { items: true },
+      relations: { items: { color: true } },
     });
 
     if (!order) {
