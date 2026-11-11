@@ -92,7 +92,7 @@ export function ProductCard({ item, onOpen }: { item: CatalogProduct; onOpen: (i
     <button type="button" onClick={() => onOpen(item.id)} className="group w-full overflow-hidden rounded-2xl bg-white text-right"
       style={{ border: "1px solid var(--line)", boxShadow: "var(--shadow-card)" }}>
       <div className="relative overflow-hidden bg-[#f5e9e8]" style={{ aspectRatio: "3/4" }}>
-        {item.img ? <img src={item.img} alt={item.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-cover transition-transform duration-500 group-hover:scale-100" /> : <div className="flex h-full items-center justify-center px-5 text-center" style={{ color: "var(--plum-soft)" }}>{item.name}</div>}
+        {item.img ? <img src={item.img} alt={item.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-contain transition-transform duration-500 group-hover:scale-100" /> : <div className="flex h-full items-center justify-center px-5 text-center" style={{ color: "var(--plum-soft)" }}>{item.name}</div>}
         {item.tag && <span className="absolute end-2.5 top-2.5 rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ background: item.tag.toLowerCase().includes("new") ? "var(--sage-deep)" : "var(--rose-deep)" }}>{item.tag}</span>}
       </div>
       <div className="p-3.5">

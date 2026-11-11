@@ -147,11 +147,11 @@ export default function ProductDetail({
             <div className="grid gap-8 lg:grid-cols-2">
               <div className="flex flex-col">
                 <div className="relative order-2 overflow-hidden rounded-3xl bg-[#f5e9e8]" style={{ border: "1px solid var(--line)", aspectRatio: "4/5" }}>
-                  {image ? <img src={image} alt={product.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-cover" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
+                  {image ? <img src={image} alt={product.name} className="absolute inset-0 m-auto h-[96%] w-[96%] object-contain" /> : <div className="flex h-full items-center justify-center">{product.name}</div>}
                   {tagLabel && <span className="absolute end-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "var(--rose-deep)" }}>{tagLabel}</span>}
                   {!product.isActive && <span className="absolute bottom-3 start-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white">غير متاح حالياً</span>}
                 </div>
-                {images.length > 1 && <div className="order-3 mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+                {images.length > 1 && <div className="order-3 mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-contain" /></button>)}</div>}
                 {product.colors.length > 0 && <div className="order-1 mb-4">
                   <p className="mb-3 text-sm font-semibold">اللون: {color?.nameAr || color?.nameEn}</p>
                   <div className="flex flex-wrap gap-4">{product.colors.map((item, index) => {

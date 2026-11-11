@@ -11,6 +11,12 @@ export const productsService = {
     const response = await api.get("/products", { params });
     return (unwrapApiResult<any[]>(response) ?? []);
   },
+  async reorderCategory(categoryId: number, orderedIds: number[]) {
+    await api.put(
+      "/categories/" + encodeURIComponent(String(categoryId)) + "/reorder",
+      { orderedIds },
+    );
+  },
   async byId(id: string | number) {
     const response = await api.get("/products/" + encodeURIComponent(String(id)));
     return unwrapApiResult<any>(response);

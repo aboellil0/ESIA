@@ -291,7 +291,7 @@ export default function Checkout({
                   <img
                     src={item.image}
                     alt={item.name}
-                    className="h-28 w-24 rounded-xl object-cover"
+                    className="h-28 w-24 rounded-xl object-contain"
                   />
                 ) : (
                   <div className="h-28 w-24 rounded-xl bg-[#f5e9e8]" />

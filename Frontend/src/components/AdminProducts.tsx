@@ -33,6 +33,7 @@ type ProductRow = {
   shortDescription?: string | null;
   isActive?: boolean;
   categoryId?: number;
+  sortOrder?: number;
   coverImageUrl?: string | null;
   category?: { id?: number; name?: string; slug?: string } | null;
   colors?: PaletteColor[];
@@ -56,6 +57,21 @@ const emptyForm = {
   isActive: true,
 };
 
+function moveProductRow(
+  rows: ProductRow[],
+  productId: number,
+  destinationIndex: number,
+): ProductRow[] {
+  const fromIndex = rows.findIndex((product) => product.id === productId);
+  if (fromIndex < 0 || rows.length < 2) return rows;
+  const toIndex = Math.max(0, Math.min(destinationIndex, rows.length - 1));
+  if (fromIndex === toIndex) return rows;
+  const next = rows.slice();
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
 export default function AdminProducts({
   onNavigate,
   onLogout,
@@ -65,13 +81,26 @@ export default function AdminProducts({
 }) {
   const { categories } = useCategories();
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [reorderCategoryId, setReorderCategoryId] = useState("");
   const [selected, setSelected] = useState<ProductRow | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [orderSaveStatus, setOrderSaveStatus] = useState<"saving" | "saved" | "error" | null>(null);
+  const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
+  const [retryOrder, setRetryOrder] = useState<ProductRow[] | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
   const formRef = useRef<HTMLElement | null>(null);
+  const productsRef = useRef<ProductRow[]>([]);
+  const loadRequestIdRef = useRef(0);
+  const orderRequestIdRef = useRef(0);
+  const orderSavingRef = useRef(false);
+  const hasLoadedProductsRef = useRef(false);
+  const draggingIdRef = useRef<number | null>(null);
+  const dragStartProductsRef = useRef<ProductRow[] | null>(null);
 
   const [form, setForm] = useState(emptyForm);
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([]);
@@ -106,32 +135,144 @@ export default function AdminProducts({
   }, [products, globalPalette]);
 
   const loadProducts = useCallback(async () => {
-    setLoading(true);
+    const requestId = ++loadRequestIdRef.current;
     setError(null);
+    if (!reorderCategoryId) {
+      productsRef.current = [];
+      setProducts([]);
+      setProductsLoading(false);
+      setLoading(false);
+      return;
+    }
+    if (!hasLoadedProductsRef.current) setLoading(true);
+    setProductsLoading(true);
     try {
       const [data, paletteColors] = await Promise.all([
-        productsService.list(),
+        productsService.list({ categoryId: Number(reorderCategoryId) }),
         colorsService.list().catch(() => [] as PaletteColor[]),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
       setGlobalPalette(Array.isArray(paletteColors) ? paletteColors : []);
       const rows = Array.isArray(data) ? (data as ProductRow[]) : [];
+      productsRef.current = rows;
       setProducts(rows);
       if (editingId !== null) {
         const current = rows.find((item) => item.id === editingId);
-        if (current)
-          setSelected((await productsService.byId(current.id)) as ProductRow);
+        if (current) {
+          const fullProduct = (await productsService.byId(current.id)) as ProductRow;
+          if (requestId === loadRequestIdRef.current) setSelected(fullProduct);
+        }
       }
     } catch (loadError) {
+      if (requestId !== loadRequestIdRef.current) return;
+      productsRef.current = [];
       setProducts([]);
       setError(getApiErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) {
+        setProductsLoading(false);
+        setLoading(false);
+        hasLoadedProductsRef.current = true;
+      }
     }
-  }, [editingId]);
+  }, [editingId, reorderCategoryId]);
+
+  useEffect(() => {
+    if (!reorderCategoryId && categories.length) {
+      setReorderCategoryId(String(categories[0].id));
+    }
+  }, [categories, reorderCategoryId]);
 
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
+
+  const commitOrder = useCallback(async (next: ProductRow[], previous: ProductRow[]) => {
+    const changed = next.length !== previous.length || next.some((product, index) => product.id !== previous[index]?.id);
+    if (!changed || !reorderCategoryId || orderSavingRef.current) return;
+
+    const requestId = ++orderRequestIdRef.current;
+    orderSavingRef.current = true;
+    setOrderSaveStatus("saving");
+    setOrderSaveError(null);
+    setRetryOrder(null);
+    try {
+      await productsService.reorderCategory(
+        Number(reorderCategoryId),
+        next.map((product) => product.id),
+      );
+      if (requestId !== orderRequestIdRef.current) return;
+      orderSavingRef.current = false;
+      setOrderSaveStatus("saved");
+    } catch (saveError) {
+      if (requestId !== orderRequestIdRef.current) return;
+      orderSavingRef.current = false;
+      productsRef.current = previous;
+      setProducts(previous);
+      setRetryOrder(next);
+      setOrderSaveStatus("error");
+      setOrderSaveError(`Could not save the product order. ${getApiErrorMessage(saveError)}`);
+    }
+  }, [reorderCategoryId]);
+
+  useEffect(() => {
+    const finishDrag = () => {
+      const previous = dragStartProductsRef.current;
+      const next = productsRef.current;
+      draggingIdRef.current = null;
+      dragStartProductsRef.current = null;
+      setDraggingId(null);
+      if (previous) void commitOrder(next, previous);
+    };
+    const cancelDrag = () => {
+      const previous = dragStartProductsRef.current;
+      draggingIdRef.current = null;
+      dragStartProductsRef.current = null;
+      setDraggingId(null);
+      if (previous) {
+        productsRef.current = previous;
+        setProducts(previous);
+      }
+    };
+    const moveDrag = (event: PointerEvent) => {
+      const productId = draggingIdRef.current;
+      if (productId === null || orderSavingRef.current) return;
+      const targetRow = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>("[data-product-order-id]");
+      if (!targetRow) return;
+      const targetId = Number(targetRow.dataset.productOrderId);
+      const targetIndex = productsRef.current.findIndex((product) => product.id === targetId);
+      if (targetIndex < 0) return;
+      const rect = targetRow.getBoundingClientRect();
+      const insertionIndex = event.clientY < rect.top + rect.height / 2
+        ? targetIndex
+        : targetIndex + 1;
+      const fromIndex = productsRef.current.findIndex((product) => product.id === productId);
+      const destinationIndex = fromIndex < insertionIndex ? insertionIndex - 1 : insertionIndex;
+      const next = moveProductRow(productsRef.current, productId, destinationIndex);
+      if (next === productsRef.current) return;
+      productsRef.current = next;
+      setProducts(next);
+    };
+
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", cancelDrag);
+    return () => {
+      window.removeEventListener("pointermove", moveDrag);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", cancelDrag);
+    };
+  }, [commitOrder]);
+
+  const retryOrderSave = () => {
+    if (!retryOrder || orderSavingRef.current) return;
+    const previous = productsRef.current;
+    productsRef.current = retryOrder;
+    setProducts(retryOrder);
+    void commitOrder(retryOrder, previous);
+  };
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -256,6 +397,7 @@ export default function AdminProducts({
         const updated = await productsService.update(editingId, formData);
         setSelected(updated as ProductRow);
         fillFormFromProduct(updated as ProductRow);
+        setReorderCategoryId(String((updated as ProductRow).categoryId ?? form.categoryId));
         setNotice("تم حفظ التعديلات.");
       } else {
         imageFiles.forEach((file, index) => {
@@ -263,6 +405,7 @@ export default function AdminProducts({
         });
         if (coverFile) formData.append("cover", coverFile);
         await productsService.create(formData);
+        setReorderCategoryId(form.categoryId);
         startNew();
         setNotice("تم إنشاء المنتج.");
       }
@@ -519,21 +662,71 @@ export default function AdminProducts({
                   + منتج جديد
                 </button>
               </div>
-              {error ? null : products.length === 0 ? (
+              <div className="mb-4 space-y-2">
+                <label htmlFor="product-order-category" className="block text-sm font-medium">
+                  Category to reorder
+                </label>
+                <select
+                  id="product-order-category"
+                  className={inputClass}
+                  value={reorderCategoryId}
+                  disabled={busy || orderSaveStatus === "saving"}
+                  onChange={(event) => {
+                    setReorderCategoryId(event.target.value);
+                    productsRef.current = [];
+                    setProducts([]);
+                    draggingIdRef.current = null;
+                    dragStartProductsRef.current = null;
+                    setDraggingId(null);
+                    setOrderSaveStatus(null);
+                    setOrderSaveError(null);
+                    setRetryOrder(null);
+                  }}
+                >
+                  {categories.length === 0 ? (
+                    <option value="">No categories available</option>
+                  ) : categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+                {orderSaveStatus === "saving" && (
+                  <p role="status" aria-live="polite" className="text-sm text-gray-600">Saving...</p>
+                )}
+                {orderSaveStatus === "saved" && (
+                  <p role="status" aria-live="polite" className="text-sm text-green-700">Order saved</p>
+                )}
+                {orderSaveStatus === "error" && orderSaveError && (
+                  <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
+                    <span>{orderSaveError}</span>
+                    {retryOrder && (
+                      <button type="button" onClick={retryOrderSave} disabled={busy || productsLoading} className="underline focus-visible:outline-2 focus-visible:outline-offset-2">
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {!reorderCategoryId ? (
+                <p className="py-8 text-center text-sm text-gray-500">Select a category to see its products.</p>
+              ) : productsLoading ? (
+                <p role="status" className="py-8 text-center text-sm text-gray-500">Loading products...</p>
+              ) : error ? null : products.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500">
                   لا توجد منتجات بعد.
                 </p>
               ) : (
-                <div className="space-y-2">
-                  {products.map((product) => {
+                <div className="space-y-2" role="list" aria-label="Products in selected category">
+                  {products.map((product, index) => {
                     const thumb =
                       product.coverImageUrl ?? product.images?.[0]?.imageUrl;
                     return (
-                      <button
+                      <div
                         key={product.id}
-                        type="button"
-                        onClick={() => void selectProduct(product.id)}
-                        className="flex w-full items-center gap-3 rounded-xl border p-3 text-right"
+                        data-product-order-id={product.id}
+                        role="listitem"
+                        aria-posinset={index + 1}
+                        aria-setsize={products.length}
+                        className={`flex items-center gap-2 rounded-xl border p-2 transition-colors ${draggingId === product.id ? "bg-[#fbf5ef] shadow-sm" : "bg-white"}`}
                         style={{
                           borderColor:
                             editingId === product.id
@@ -541,26 +734,76 @@ export default function AdminProducts({
                               : "var(--line)",
                         }}
                       >
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt=""
-                            className="h-14 w-12 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <span className="h-14 w-12 rounded-lg bg-[#f5e9e8]" />
-                        )}
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-semibold max-[767px]:whitespace-normal">
-                            {product.name}
+                        <button
+                          type="button"
+                          aria-label={`Move ${product.name}, position ${index + 1}. Use Arrow Up or Arrow Down to reorder.`}
+                          aria-keyshortcuts="ArrowUp ArrowDown"
+                          disabled={busy || orderSaveStatus === "saving"}
+                          onPointerDown={(event) => {
+                            if (busy || orderSavingRef.current || (event.pointerType === "mouse" && event.button !== 0)) return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            draggingIdRef.current = product.id;
+                            dragStartProductsRef.current = productsRef.current;
+                            setDraggingId(product.id);
+                            try {
+                              event.currentTarget.setPointerCapture(event.pointerId);
+                            } catch {
+                              // Global pointer listeners still complete the drag if capture is unavailable.
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (orderSavingRef.current || busy || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+                            const previous = productsRef.current;
+                            const fromIndex = previous.findIndex((item) => item.id === product.id);
+                            const destinationIndex = fromIndex + (event.key === "ArrowUp" ? -1 : 1);
+                            if (destinationIndex < 0 || destinationIndex >= previous.length) return;
+                            event.preventDefault();
+                            const next = moveProductRow(previous, product.id, destinationIndex);
+                            if (next === previous) return;
+                            productsRef.current = next;
+                            setProducts(next);
+                            void commitOrder(next, previous);
+                          }}
+                          className="flex h-9 w-9 shrink-0 touch-none select-none items-center justify-center rounded-lg text-gray-500 hover:bg-[#f5e9e8] hover:text-[#7d394d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9a4f63] active:cursor-grabbing disabled:cursor-not-allowed"
+                          style={{ cursor: draggingId === product.id ? "grabbing" : "grab" }}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 16 16" className="h-4 w-4 fill-current">
+                            <circle cx="5" cy="3" r="1.25" />
+                            <circle cx="11" cy="3" r="1.25" />
+                            <circle cx="5" cy="8" r="1.25" />
+                            <circle cx="11" cy="8" r="1.25" />
+                            <circle cx="5" cy="13" r="1.25" />
+                            <circle cx="11" cy="13" r="1.25" />
+                          </svg>
+                        </button>
+                        <span aria-hidden="true" className="w-6 shrink-0 text-center text-sm font-semibold text-gray-500">{index + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => void selectProduct(product.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-right focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9a4f63]"
+                        >
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-14 w-12 shrink-0 rounded-lg bg-[#fbf5ef] object-contain p-1"
+                            />
+                          ) : (
+                            <span className="h-14 w-12 shrink-0 rounded-lg bg-[#f5e9e8]" />
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold max-[767px]:whitespace-normal">
+                              {product.name}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {product.category?.name ?? product.category?.slug} ·{" "}
+                              {Number(product.price).toLocaleString()} ج.م
+                              {product.isActive === false ? " · موقوف" : ""}
+                            </span>
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {product.category?.name ?? product.category?.slug} ·{" "}
-                            {Number(product.price).toLocaleString()} ج.م
-                            {product.isActive === false ? " · موقوف" : ""}
-                          </span>
-                        </span>
-                      </button>
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -876,7 +1119,7 @@ export default function AdminProducts({
                         <img
                           src={coverPreview}
                           alt="الغلاف"
-                          className="h-36 w-28 rounded-xl border object-cover"
+                          className="h-36 w-28 rounded-xl border object-contain"
                           style={{ borderColor: "var(--line)" }}
                         />
                       ) : (
@@ -984,7 +1227,7 @@ export default function AdminProducts({
                               <img
                                 src={image.imageUrl}
                                 alt=""
-                                className="h-44 w-full object-cover"
+                                className="h-44 w-full object-contain"
                               />
                               <div className="flex flex-wrap items-center justify-between gap-1 p-2 text-xs">
                                 <span>ترتيب {image.sortOrder + 1}</span>
