@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Category } from "../models/Category";
+import { Product } from "../models/Product";
 import { AppError } from "../utils/AppError";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -197,4 +198,53 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response) =
     data: null,
     statusCode: 200,
   });
+});
+
+export const reorderCategoryProducts = asyncHandler(async (req: Request, res: Response) => {
+  const categoryId = Number(req.params.categoryId);
+  if (!Number.isSafeInteger(categoryId) || categoryId <= 0) {
+    throw AppError.badRequest("Invalid category id");
+  }
+
+  const orderedIds: unknown = req.body?.orderedIds;
+  if (!Array.isArray(orderedIds)) {
+    throw AppError.badRequest("orderedIds must be an array of product ids");
+  }
+  if (orderedIds.some((id) => !Number.isSafeInteger(id) || (id as number) <= 0)) {
+    throw AppError.badRequest("orderedIds must contain positive integer product ids");
+  }
+  const ids = orderedIds as number[];
+  if (new Set(ids).size !== ids.length) {
+    throw AppError.badRequest("orderedIds must not contain duplicate product ids");
+  }
+
+  await AppDataSource.transaction("SERIALIZABLE", async (manager) => {
+    const category = await manager.getRepository(Category).findOne({
+      where: { id: categoryId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!category) throw AppError.notFound("Category not found");
+
+    const productRepo = manager.getRepository(Product);
+    const products = await productRepo
+      .createQueryBuilder("product")
+      .where("product.category_id = :categoryId", { categoryId })
+      .orderBy("product.id", "ASC")
+      .setLock("pessimistic_write")
+      .getMany();
+    const productsById = new Map(products.map((product) => [product.id, product]));
+
+    if (ids.length !== products.length || ids.some((id) => !productsById.has(id))) {
+      throw AppError.badRequest("orderedIds must include every product in the selected category");
+    }
+
+    const orderedProducts = ids.map((id, index) => {
+      const product = productsById.get(id)!;
+      product.sortOrder = index;
+      return product;
+    });
+    await productRepo.save(orderedProducts);
+  });
+
+  res.status(204).send();
 });

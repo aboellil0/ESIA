@@ -7,6 +7,7 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  reorderCategoryProducts,
 } from "../controllers/category.controller";
 
 const router = Router();
@@ -18,6 +19,7 @@ router.get("/:id", getCategoryById);
 
 // Admin write endpoints — require Bearer token with role=admin
 router.post("/", protect, adminOnly, createCategory);
+router.put("/:categoryId/reorder", protect, adminOnly, reorderCategoryProducts);
 router.patch("/:id", protect, adminOnly, updateCategory);
 router.delete("/:id", protect, adminOnly, deleteCategory);
 

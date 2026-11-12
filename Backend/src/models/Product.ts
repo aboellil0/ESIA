@@ -18,6 +18,10 @@ export class Product {
   @Expose()
   categoryId!: number;
 
+  @Column({ name: "sort_order", type: "integer", default: 0 })
+  @Expose()
+  sortOrder!: number;
+
   @ManyToOne(() => Category, (c) => c.products, { onDelete: "CASCADE" })
   @JoinColumn({ name: "category_id" })
   category!: Category;

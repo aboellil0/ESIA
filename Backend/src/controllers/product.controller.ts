@@ -600,7 +600,7 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
   const products = await repo.find({
     where: categoryFilterActive ? where : {},
     relations: { colors: true, sizes: true, images: true, category: true },
-    order: { id: "ASC" } as any,
+    order: { sortOrder: "ASC", id: "ASC" },
   });
   // List view: cover image + basics for card (outside show) — details endpoint returns full gallery
   const listData = products.map((p) => {
@@ -610,6 +610,7 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
       id: p.id,
       name: p.name,
       categoryId: p.categoryId,
+      sortOrder: p.sortOrder,
       category: p.category ? { id: (p.category as any).id, name: (p.category as any).name, slug: (p.category as any).slug } : null,
       price: p.price,
       oldPrice: p.oldPrice,
